@@ -1,13 +1,36 @@
-# Sample Hardhat Project
+# Leveraged DeFi Strategy Contracts
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+Smart contracts for Yearn V3 Leveraged DeFi Strategy.
 
-Try running some of the following tasks:
+## Overview
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.ts
-```
+Smart contracts allow:
+- Open/Close leveraged positions
+- Refinance positions (between different lending protocols or between different markets/tokens)
+- Change leverage
+- Calculate total owned assets using oracles and other on-chain data (e.g. PT implied yield)
+- Control risk
+
+## Opening a position
+
+- Borrows assets (using flash loans)
+- Buys other tokens (ideally yield-bearing tokens)
+- Puts bought tokens into lending protocols as collateral
+- Borrows assets
+- Returns flash loan
+
+## Closing a position
+
+- Borrows assets
+- Repays debt on lending protocol
+- Withdraws collateral from lending protocol
+- Sells collateral
+- Returns flash loan
+
+## Refinancing/Changing leverage (not implemented yet)
+
+Implemented the same way as opening/closing a position.
+
+## Architecture
+
+Architure is described in [Architecture Decision Records](docs/adr).
