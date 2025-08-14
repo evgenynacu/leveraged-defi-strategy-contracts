@@ -13,7 +13,7 @@ Objective: earn fixed yield by holding discounted Pendle PTs with leverage; rota
 - Continuous LTV monitoring with automatic deleveraging if thresholds are breached.
 - Use of reliable pricing sources for PT valuation (implied yield, TWAP, oracles).
 - Configurable parameters for slippage tolerance, roll window, and target LTV ranges.
-- 
+
 ### Vault & Protocol Requirements
 - Support for asynchronous deposits and withdrawals with share minting based on actual post-execution NAV.
 - Ability to set different entry and exit prices (accounting for fees and execution slippage in PPS).
