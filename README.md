@@ -6,6 +6,23 @@ Smart contracts for Leveraged DeFi Strategy.
 
 Objective: earn fixed yield by holding discounted Pendle PTs with leverage; rotate into newer PTs before maturity; refinance debt across money markets when advantageous.
 
+### Strategy Requirements
+- Focus on leveraged positions in Pendle PT tokens with conservative LTV management.
+- Manual control over PT selection, maturity rotation, and lending market choice.
+- Ability to refinance between supported lending markets (Aave, Morpho, Euler) when beneficial.
+- Continuous LTV monitoring with automatic deleveraging if thresholds are breached.
+- Use of reliable pricing sources for PT valuation (implied yield, TWAP, oracles).
+- Configurable parameters for slippage tolerance, roll window, and target LTV ranges.
+- 
+### Vault & Protocol Requirements
+- Support for asynchronous deposits and withdrawals with share minting based on actual post-execution NAV.
+- Ability to set different entry and exit prices (accounting for fees and execution slippage in PPS).
+- Flexible NAV calculation using reliable oracles (TWAP, Chainlink, spot prices) with source aggregation.
+- Built-in safeguards: slippage limits, deadlines, min-shares/min-assets conditions.
+- Support for integration with external protocols and multi-step asset movement.
+
+## In-depth description
+
 ### Instruments
 - PT (Principal Token): accrues to par at maturity; trades at discount.
 - Pendle router for swapping PT for other tokens and vice versa.
@@ -32,7 +49,7 @@ Objective: earn fixed yield by holding discounted Pendle PTs with leverage; rota
 - NAV: PT market value − outstanding debt + idle cash.
 - Haircuts: apply valuation discount to PT marks for conservative accounting.
 
-## Keeper/Executor Duties (off‑chain)
+### Keeper/Executor Duties (off‑chain)
 - Compute optimal swap routes and calldata; enforce slippage.
 - Monitor LTV, prices, borrow APRs; trigger lever/delever/refinance.
 
