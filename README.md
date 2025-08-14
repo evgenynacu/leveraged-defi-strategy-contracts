@@ -62,7 +62,7 @@ Smart contracts allow:
 - Calculate total owned assets using oracles and other on-chain data (e.g. PT implied yield)
 - Control risk
 
-## Opening a position
+### Opening a position
 
 - Borrows assets (using flash loans)
 - Buys other tokens (ideally yield-bearing tokens)
@@ -70,7 +70,7 @@ Smart contracts allow:
 - Borrows assets
 - Returns flash loan
 
-## Closing a position
+### Closing a position
 
 - Borrows assets
 - Repays debt on lending protocol
@@ -78,7 +78,7 @@ Smart contracts allow:
 - Sells collateral
 - Returns flash loan
 
-## Refinancing/Changing leverage (not implemented yet)
+### Refinancing/Changing leverage (not implemented yet)
 
 Implemented the same way as opening/closing a position.
 
