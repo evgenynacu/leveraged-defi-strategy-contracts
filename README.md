@@ -32,6 +32,10 @@ Objective: earn fixed yield by holding discounted Pendle PTs with leverage; rota
 - NAV: PT market value − outstanding debt + idle cash.
 - Haircuts: apply valuation discount to PT marks for conservative accounting.
 
+## Keeper/Executor Duties (off‑chain)
+- Compute optimal swap routes and calldata; enforce slippage.
+- Monitor LTV, prices, borrow APRs; trigger lever/delever/refinance.
+
 ## Operations overview
 
 Smart contracts allow:

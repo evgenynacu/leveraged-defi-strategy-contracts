@@ -89,7 +89,7 @@ contract MorphoFlashLoanAdapter is IFlashLoanManager {
     - Rejected due to integration complexity
 
 ## Implementation Notes
-- Start with Morpho-only implementation for MVP
+- Start with a Morpho-only implementation for MVP
 - Monitor liquidity levels and protocol performance
 - Consider adding Aave fallback in future versions if needed
 - Ensure proper error handling for insufficient liquidity scenarios

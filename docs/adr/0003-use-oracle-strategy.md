@@ -17,7 +17,7 @@ Oracle failure risks:
 - Flash loan attacks
 
 ## Decision
-Implement multi-layered oracle strategy:
+Implement a multi-layered oracle strategy:
 
 1. **Primary**: Chainlink Price Feeds
 2. **Secondary**: TWAP from Uniswap V3

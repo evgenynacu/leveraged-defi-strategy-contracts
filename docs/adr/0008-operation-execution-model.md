@@ -9,7 +9,7 @@ Need to define how operations are executed in the plugin-based architecture:
 - Each step may involve different protocols (Aave, Morpho, Uniswap, etc.)
 - Operations must be atomic (all succeed or all fail)
 - Plugins should have flexible function interfaces without standardization constraints
-- Main contract must maintain control and invariant checking
+- The main contract must maintain control and invariant checking
 
 Requirements:
 - Support arbitrary plugin function signatures
