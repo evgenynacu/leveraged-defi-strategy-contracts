@@ -1,4 +1,4 @@
-# ADR-0003: Use Chainlink as Primary Oracle with Redundancy
+# ADR-0004: Use Chainlink as Primary Oracle with Redundancy
 
 ## Status
 Accepted

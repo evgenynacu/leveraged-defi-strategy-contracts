@@ -1,4 +1,4 @@
-# ADR-0002: Choose Aave V3 as Primary Lending Protocol
+# ADR-0003: Choose Aave V3 as Primary Lending Protocol
 
 ## Status
 Accepted

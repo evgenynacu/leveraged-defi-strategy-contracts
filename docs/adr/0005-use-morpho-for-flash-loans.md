@@ -1,4 +1,4 @@
-# ADR-0004: Use Morpho for Flash Loans
+# ADR-0005: Use Morpho for Flash Loans
 
 ## Status
 Accepted

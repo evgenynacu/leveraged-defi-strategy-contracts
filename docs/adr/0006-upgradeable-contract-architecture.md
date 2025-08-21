@@ -1,4 +1,4 @@
-# ADR-0005: Use Upgradeable Smart Contract Architecture
+# ADR-0006: Use Upgradeable Smart Contract Architecture
 
 ## Status
 Accepted
