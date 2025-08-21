@@ -14,22 +14,28 @@ A performance fee mechanism is needed to reward managers while avoiding double c
 ### Base Vault
 - deposit(uint256 assets, uint256 minShares, bytes data)
   - Mint shares based on assets provided, respecting minShares.
+  - Share calculation uses pre-deploy and post-deploy NAV to determine actual value added.
 - withdraw(uint256 shares, uint256 minAssets, bytes data)
   - Burn shares and return underlying assets, respecting minAssets.
+  - BaseVault cannot pre-calculate withdrawal amounts as strategies must sell/liquidate positions.
+  - Strategy implementations determine actual assets received through _withdrawUnderlying.
 
 - totalAssets()
   - Return NAV estimation (using oracle pricing or child vaults).
 - totalSupply()
   - Return current shares supply.
 - availableCapacity()
-  - Return maximum amount of assets that can be deposited into the vault.
-  - Considers vault capacity limits, underlying strategy constraints, and available liquidity.
-  - For hierarchical vaults, aggregates available capacity from child vaults.
-- Internal hooks for extensions (_deploy, _withdrawUnderlying, etc.).
+  - Return the maximum number of assets that can be deposited into the vault.
+  - Must be implemented by derived contracts as capacity constraints vary by strategy.
+  - Considers strategy-specific limits, underlying protocol constraints, and available liquidity.
+  - For hierarchical vaults, may aggregate available capacity from child vaults.
+- Internal hooks for extensions:
+  - _deploy(uint256 assets, bytes data): Deploy assets into strategy
+  - _withdrawUnderlying(uint256 shares, bytes data) returns (uint256 assets): Withdraw and return actual assets obtained
 
 ### Performance Fee with Vault-Level HWM
 - Vault tracks a global HWM of PPS (totalAssets / totalSupply).
-- On fee-trigger events (withdrawal, rebalance, roll, refinance, or explicit harvest()):
+- Performance fees are charged manually via harvest() function called by manager:
 - Compute current PPS.
   - If PPS > HWM:
     - Delta is profit.
@@ -38,6 +44,7 @@ A performance fee mechanism is needed to reward managers while avoiding double c
     - Update HWM = current PPS.
   - If PPS <= HWM: no fee charged.
 - This ensures fees are taken only on new net profits and avoids charging twice after drawdowns.
+- Manual triggering gives managers control over fee timing and avoids automatic fee extraction during user operations.
 
 ### Hierarchical Composition
 - Any vault can hold other vaults as “assets.”
