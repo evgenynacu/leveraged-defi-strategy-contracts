@@ -28,7 +28,7 @@ describe("BaseVault", function () {
     await vault.initialize(
       await asset.getAddress(),
       "Test Vault",
-      "TVAULT",
+      "VAULT",
       PERFORMANCE_FEE,
       feeRecipient.address,
       MAX_CAPACITY
