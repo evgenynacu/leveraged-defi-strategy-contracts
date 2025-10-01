@@ -1,4 +1,10 @@
-# ADR 0009: Multi-level Vaults
+# ADR-0009: Multi-level Vaults
+
+## Status
+Accepted
+
+## Date
+2024-10-01
 
 ## Context
 Parent aggregates multiple child strategies with different liquidity/yield profiles while preserving proportional exits.
@@ -18,3 +24,8 @@ Parent aggregates multiple child strategies with different liquidity/yield profi
 ## Consequences
 - Honest portfolio-fraction exits in heterogeneous, multi-strategy setups.
 - Predictable rebalancing via future epochs without breaking fairness.
+
+## Related ADRs
+- [ADR-0002: Vault Architecture v2](0002-vault-architecture.md) - Foundation for multi-child parent design
+- [ADR-0004: Deposit & Withdrawal Settlement](0004-deposit-withdrawal-settlement.md) - Proportional exit mechanics extended to multiple children
+- [ADR-0005: Child Vault Interface](0005-child-vault-interface.md) - Interface used by all children in multi-level setup

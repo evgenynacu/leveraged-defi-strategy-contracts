@@ -1,4 +1,10 @@
-# ADR 0004: Deposit & Withdrawal Settlement
+# ADR-0004: Deposit & Withdrawal Settlement
+
+## Status
+Accepted
+
+## Date
+2024-10-01
 
 ## Context
 We need fair batching without oracle reliance, supporting multiple children and proportional exits.
@@ -25,3 +31,8 @@ We need fair batching without oracle reliance, supporting multiple children and 
 ## Consequences
 - No NAV-based over/underpayments.
 - Predictable proportional exits, with transparent partial-fill queues.
+
+## Related ADRs
+- [ADR-0002: Vault Architecture v2](0002-vault-architecture.md) - Defines overall epoch-based architecture
+- [ADR-0003: NAV Calculation Method](0003-nav-calculation-method.md) - NAV snapshots used in processEpoch
+- [ADR-0009: Multi-level Vaults](0009-multi-level-vaults.md) - Extends settlement to multi-child scenarios

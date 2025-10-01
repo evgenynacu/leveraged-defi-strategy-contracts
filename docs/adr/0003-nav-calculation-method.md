@@ -1,4 +1,10 @@
-# ADR 0003: NAV Calculation Method
+# ADR-0003: NAV Calculation Method
+
+## Status
+Accepted
+
+## Date
+2024-09-26
 
 ## Context
 Oracle spot prices for assets like sUSDe can be stale/biased. NAV must reflect real economic PnL, not fragile spot quotes.
@@ -22,3 +28,7 @@ Oracle spot prices for assets like sUSDe can be stale/biased. NAV must reflect r
 ## Consequences
 - Eliminates oracle-lag arbitrage at entry/exit.
 - NAV mirrors strategy economics; sharePrice can deviate from instantaneous liquidation value but remains fair to all holders.
+
+## Related ADRs
+- [ADR-0002: Vault Architecture v2](0002-vault-architecture.md) - Uses NAV for deltaNAV-based share minting
+- [ADR-0004: Deposit & Withdrawal Settlement](0004-deposit-withdrawal-settlement.md) - Applies NAV snapshots in epoch processing

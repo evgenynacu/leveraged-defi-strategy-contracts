@@ -3,6 +3,9 @@
 ## Status
 Accepted
 
+## Date
+2024-09-26
+
 ## Context
 The Leveraged PT strategy requires complex multistep operations that combine:
 - Flash loans for capital efficiency
@@ -96,10 +99,12 @@ Vault keeper should be able to call this function to execute arbitrary commands 
 - **Cons**: Inflexible, requires upgrades for new protocols
 - **Rejected**: Cannot adapt to optimal execution paths
 
+## Related ADRs
+- [ADR-0005: Child Vault Interface](0005-child-vault-interface.md) - Data parameter in deposit/withdraw may contain command sequences
+- [ADR-0006: Upgradeable Contract Architecture](0006-upgradeable-contract-architecture.md) - Command system reduces need for upgrades
+
 ## References
 - [Morpho Flash Loans](https://docs.morpho.org/morpho/developers/flash-loans)
 - [Aave V3 Documentation](https://docs.aave.com/developers/)
 - [Pendle Integration Guide](https://docs.pendle.finance/)
 - [Odos Router Documentation](https://docs.odos.xyz/)
-
-

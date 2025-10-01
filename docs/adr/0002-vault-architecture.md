@@ -1,4 +1,10 @@
-# ADR 0002: Vault Architecture v2
+# ADR-0002: Vault Architecture v2
+
+## Status
+Accepted
+
+## Date
+2024-09-26
 
 ## Context
 We need a safe, fair, and simple vault system with multi-strategy composition. Oracle-based NAV can drift (~±0.8%), so entry/exit must not rely on noisy spot oracles.
@@ -23,3 +29,9 @@ We need a safe, fair, and simple vault system with multi-strategy composition. O
 - Honest entry and exit independent of oracle noise.
 - Simple child adapters; all complexity (queues/epochs/mint/burn) lives in the parent.
 - Predictable, auditable accounting.
+
+## Related ADRs
+- [ADR-0003: NAV Calculation Method](0003-nav-calculation-method.md) - Defines how NAV is calculated for entry/exit
+- [ADR-0004: Deposit & Withdrawal Settlement](0004-deposit-withdrawal-settlement.md) - Details epoch processing mechanics
+- [ADR-0005: Child Vault Interface](0005-child-vault-interface.md) - Specifies child vault contract interface
+- [ADR-0009: Multi-level Vaults](0009-multi-level-vaults.md) - Extends this architecture to multiple children
