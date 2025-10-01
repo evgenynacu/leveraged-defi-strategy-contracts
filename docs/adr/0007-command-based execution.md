@@ -26,13 +26,13 @@ Implement a **Command-Based Execution System** using a simple operation enum and
 ### Core Data Structures
 
 ```solidity
-
-enum Op { FlashLoan, LendingDeposit, LendingWithdraw, LendingBorrow, LendingRepay, Swap, Transfer }
-struct Cmd {
-    Op op; 
-    bytes data; // ABI-encoded arguments for this operation 
+contract CommandBasedVault {
+    enum Op { FlashLoan, LendingDeposit, LendingWithdraw, LendingBorrow, LendingRepay, Swap, Transfer }
+    struct Cmd {
+        Op op;
+        bytes data; // ABI-encoded arguments for this operation 
+    }
 }
-
 ```
 
 ### Integration with BaseVault
