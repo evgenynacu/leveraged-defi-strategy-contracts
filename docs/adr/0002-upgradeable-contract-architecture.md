@@ -17,10 +17,21 @@ Traditional immutable contracts require complete redeployment and user migration
 ## Decision
 Use **OpenZeppelin upgradeable contracts** with a transparent proxy pattern.
 
-Architecture:
+### Architecture
 - **Proxy Contract**: Immutable, holds state, delegates calls
 - **Implementation Contract**: Upgradeable logic
 - **Storage Layout Management**: Strict storage slot preservation
+
+### What is Upgradeable
+- ✅ Parent vault logic
+- ✅ Child vault logic (each child is upgradeable independently)
+- ❌ Proxy contracts (immutable)
+- ❌ Storage layout (append-only, cannot reorder or remove variables)
+
+### Governance
+Upgrade authority and governance mechanisms (timelock, multisig, DAO voting) are intentionally **not specified** in this ADR. These will be implemented using OpenZeppelin Governor and TimelockController, allowing flexibility to evolve governance over time without changing the core proxy architecture.
+
+Initial deployment may use a simple multisig, with migration to full on-chain governance as the protocol matures.
 
 ## Consequences
 ### Positive

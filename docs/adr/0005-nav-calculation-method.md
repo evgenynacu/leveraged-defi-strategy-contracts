@@ -17,13 +17,37 @@ Oracle spot prices for assets like sUSDe can be stale/biased. NAV must reflect r
 - **Auditability:** expose component breakdowns via events/views.
 
 ## Decision
-- **NAV =**
-    - Cash balances (stablecoins, unwrapped units).
-    - PT / discounted assets **fair value** (protocol curve/discount; not raw DEX spot).
-    - Debts (principal + accrued interest) from lending protocols.
-    - Claimable rewards **only if** realizable within epoch (otherwise ignore).
-- **Entry:** shares minted from **deltaNAV** only.
-- **Exit:** pay realized asset units; do **not** pay by NAV estimate.
+
+### NAV Formula
+
+```
+NAV = Σ(cash_i) + Σ(collateral_j × price_j) - Σ(debt_k × (1 + interest_k)) + rewards
+```
+
+Where:
+- **cash_i**: Stablecoin balances (USDC, USDT, etc.) valued at 1:1
+- **collateral_j**: Protocol-specific assets (PT tokens, LP tokens, yield-bearing tokens)
+- **price_j**: Fair value from protocol oracles (see below)
+- **debt_k**: Borrowed amounts from lending protocols (Morpho, Aave, etc.)
+- **interest_k**: Accrued interest from lending protocol's internal accounting
+- **rewards**: Claimable rewards **only if** realizable within current epoch (otherwise ignore)
+
+### Oracle Selection for Asset Pricing
+
+**PT Tokens (Pendle):**
+- Use `PendleOracle.getPtToAssetRate(market, period=0)`
+- **period = 0** returns spot price based on current pool state
+- This reflects exact liquidity exit value (what we'd get if unwinding position now)
+
+**Yield-bearing assets (sUSDe, stETH, etc.):**
+- Use external oracles (there can be differences with internal protocol rates)
+
+**Stablecoins:**
+- Use external oracles as well (can be depegs etc.)
+
+### Entry and Exit Rules
+- **Entry:** shares minted from **deltaNAV** only (`shares = deltaNAV / pricePerShare`)
+- **Exit:** pay realized asset units proportionally; do **not** pay by NAV estimate (see ADR-0006)
 
 ## Consequences
 - Eliminates oracle-lag arbitrage at entry/exit.
