@@ -33,6 +33,5 @@ We need fair batching without oracle reliance, supporting multiple children and 
 - Predictable proportional exits, with transparent partial-fill queues.
 
 ## Related ADRs
-- [ADR-0004: Vault Architecture v2](0004-vault-architecture.md) - Defines overall epoch-based architecture
+- [ADR-0004: Vault Architecture v2](0004-vault-architecture.md) - Defines overall epoch-based architecture and multi-child allocation
 - [ADR-0005: NAV Calculation Method](0005-nav-calculation-method.md) - NAV snapshots used in processEpoch
-- [ADR-0008: Multi-level Vaults](0008-multi-level-vaults.md) - Extends settlement to multi-child scenarios
