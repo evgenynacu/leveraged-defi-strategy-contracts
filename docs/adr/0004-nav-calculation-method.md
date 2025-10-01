@@ -1,4 +1,4 @@
-# ADR-0005: NAV Calculation Method
+# ADR-0004: NAV Calculation Method
 
 ## Status
 Accepted
@@ -47,12 +47,12 @@ Where:
 
 ### Entry and Exit Rules
 - **Entry:** shares minted from **deltaNAV** only (`shares = deltaNAV / pricePerShare`)
-- **Exit:** pay realized asset units proportionally; do **not** pay by NAV estimate (see ADR-0006)
+- **Exit:** pay realized asset units proportionally; do **not** pay by NAV estimate (see ADR-0005)
 
 ## Consequences
 - Eliminates oracle-lag arbitrage at entry/exit.
 - NAV mirrors strategy economics; sharePrice can deviate from instantaneous liquidation value but remains fair to all holders.
 
 ## Related ADRs
-- [ADR-0004: Vault Architecture v2](0004-vault-architecture.md) - Uses NAV for deltaNAV-based share minting
-- [ADR-0006: Deposit & Withdrawal Settlement](0006-deposit-withdrawal-settlement.md) - Applies NAV snapshots in epoch processing
+- [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Uses NAV for deltaNAV-based share minting
+- [ADR-0005: Deposit & Withdrawal Settlement](0005-deposit-withdrawal-settlement.md) - Applies NAV snapshots in epoch processing

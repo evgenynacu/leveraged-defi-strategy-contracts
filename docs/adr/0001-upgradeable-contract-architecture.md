@@ -1,4 +1,4 @@
-# ADR-0002: Use Upgradeable Smart Contract Architecture
+# ADR-0001: Use Upgradeable Smart Contract Architecture
 
 ## Status
 Accepted
@@ -45,4 +45,4 @@ Initial deployment may use a simple multisig, with migration to full on-chain go
 - Need for rigorous upgrade governance
 
 ## Related ADRs
-- [ADR-0003: Command-Based Execution](0003-command-based-execution.md) - Command system enables flexibility without frequent upgrades
+- [ADR-0002: Command-Based Execution](0002-command-based-execution.md) - Command system enables flexibility without frequent upgrades

@@ -1,4 +1,4 @@
-# ADR-0003: Command-Based Execution System for Leveraged PT Strategies
+# ADR-0002: Command-Based Execution System for Leveraged PT Strategies
 
 ## Status
 Accepted
@@ -100,8 +100,8 @@ Vault keeper should be able to call this function to execute arbitrary commands 
 - **Rejected**: Cannot adapt to optimal execution paths
 
 ## Related ADRs
-- [ADR-0007: Child Vault Interface](0007-child-vault-interface.md) - Data parameter in deposit/withdraw may contain command sequences
-- [ADR-0002: Upgradeable Contract Architecture](0002-upgradeable-contract-architecture.md) - Command system reduces need for upgrades
+- [ADR-0006: Child Vault Interface](0006-child-vault-interface.md) - Data parameter in deposit/withdraw may contain command sequences
+- [ADR-0001: Upgradeable Contract Architecture](0001-upgradeable-contract-architecture.md) - Command system reduces need for upgrades
 
 ## References
 - [Morpho Flash Loans](https://docs.morpho.org/morpho/developers/flash-loans)

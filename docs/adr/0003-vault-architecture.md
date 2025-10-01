@@ -1,4 +1,4 @@
-# ADR-0004: Vault Architecture v2
+# ADR-0003: Vault Architecture v2
 
 ## Status
 Accepted
@@ -32,7 +32,7 @@ When multiple child vaults are present:
 - **Threshold-based flexibility:** If actual allocation is within `target ± threshold`, deposits may be directed entirely to one child for gas efficiency or liquidity management.
   - Example: If Child A target is 60% ± 5%, and current is 58%, new deposits can go 100% to Child A until it reaches 65%.
 - **Rebalancing:** When actual weights drift beyond threshold, future epochs gradually reconcile by adjusting deposit flows (no forced liquidations).
-- **Liquidity awareness:** Respect each child's withdrawability; if a child is illiquid during withdrawal, deliver its realizable portion and queue the remainder (see ADR-0006).
+- **Liquidity awareness:** Respect each child's withdrawability; if a child is illiquid during withdrawal, deliver its realizable portion and queue the remainder (see ADR-0005).
 - **Transparency:** Expose per-child values and current vs target allocations via view functions.
 
 ## Consequences
@@ -41,6 +41,6 @@ When multiple child vaults are present:
 - Predictable, auditable accounting.
 
 ## Related ADRs
-- [ADR-0005: NAV Calculation Method](0005-nav-calculation-method.md) - Defines how NAV is calculated for entry/exit
-- [ADR-0006: Deposit & Withdrawal Settlement](0006-deposit-withdrawal-settlement.md) - Details epoch processing mechanics
-- [ADR-0007: Child Vault Interface](0007-child-vault-interface.md) - Specifies child vault contract interface
+- [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - Defines how NAV is calculated for entry/exit
+- [ADR-0005: Deposit & Withdrawal Settlement](0005-deposit-withdrawal-settlement.md) - Details epoch processing mechanics
+- [ADR-0006: Child Vault Interface](0006-child-vault-interface.md) - Specifies child vault contract interface

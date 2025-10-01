@@ -1,4 +1,4 @@
-# ADR-0007: Child Vault Interface
+# ADR-0006: Child Vault Interface
 
 ## Status
 Accepted
@@ -31,6 +31,6 @@ Children are single-owner strategy adapters with synchronous I/O and PnL-based a
 - Parent can perform accurate proportional exits across children.
 
 ## Related ADRs
-- [ADR-0004: Vault Architecture v2](0004-vault-architecture.md) - Defines parent-child relationship and multi-child allocation
-- [ADR-0005: NAV Calculation Method](0005-nav-calculation-method.md) - totalAssets contributes to parent NAV
-- [ADR-0003: Command-Based Execution](0003-command-based-execution.md) - Data parameter may contain command sequences
+- [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Defines parent-child relationship and multi-child allocation
+- [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - totalAssets contributes to parent NAV
+- [ADR-0002: Command-Based Execution](0002-command-based-execution.md) - Data parameter may contain command sequences

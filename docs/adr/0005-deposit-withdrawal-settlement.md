@@ -1,4 +1,4 @@
-# ADR-0006: Deposit & Withdrawal Settlement
+# ADR-0005: Deposit & Withdrawal Settlement
 
 ## Status
 Accepted
@@ -33,5 +33,5 @@ We need fair batching without oracle reliance, supporting multiple children and 
 - Predictable proportional exits, with transparent partial-fill queues.
 
 ## Related ADRs
-- [ADR-0004: Vault Architecture v2](0004-vault-architecture.md) - Defines overall epoch-based architecture and multi-child allocation
-- [ADR-0005: NAV Calculation Method](0005-nav-calculation-method.md) - NAV snapshots used in processEpoch
+- [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Defines overall epoch-based architecture and multi-child allocation
+- [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - NAV snapshots used in processEpoch
