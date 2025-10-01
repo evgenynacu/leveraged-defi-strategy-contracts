@@ -1,4 +1,4 @@
-# ADR-0006: Use Upgradeable Smart Contract Architecture
+# ADR-0002: Use Upgradeable Smart Contract Architecture
 
 ## Status
 Accepted
@@ -34,4 +34,4 @@ Architecture:
 - Need for rigorous upgrade governance
 
 ## Related ADRs
-- [ADR-0007: Command-Based Execution](0007-command-based%20execution.md) - Command system enables flexibility without frequent upgrades
+- [ADR-0003: Command-Based Execution](0003-command-based-execution.md) - Command system enables flexibility without frequent upgrades

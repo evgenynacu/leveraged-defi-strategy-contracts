@@ -1,4 +1,4 @@
-# ADR-0002: Vault Architecture v2
+# ADR-0004: Vault Architecture v2
 
 ## Status
 Accepted
@@ -31,7 +31,7 @@ We need a safe, fair, and simple vault system with multi-strategy composition. O
 - Predictable, auditable accounting.
 
 ## Related ADRs
-- [ADR-0003: NAV Calculation Method](0003-nav-calculation-method.md) - Defines how NAV is calculated for entry/exit
-- [ADR-0004: Deposit & Withdrawal Settlement](0004-deposit-withdrawal-settlement.md) - Details epoch processing mechanics
-- [ADR-0005: Child Vault Interface](0005-child-vault-interface.md) - Specifies child vault contract interface
-- [ADR-0009: Multi-level Vaults](0009-multi-level-vaults.md) - Extends this architecture to multiple children
+- [ADR-0005: NAV Calculation Method](0005-nav-calculation-method.md) - Defines how NAV is calculated for entry/exit
+- [ADR-0006: Deposit & Withdrawal Settlement](0006-deposit-withdrawal-settlement.md) - Details epoch processing mechanics
+- [ADR-0007: Child Vault Interface](0007-child-vault-interface.md) - Specifies child vault contract interface
+- [ADR-0008: Multi-level Vaults](0008-multi-level-vaults.md) - Extends this architecture to multiple children

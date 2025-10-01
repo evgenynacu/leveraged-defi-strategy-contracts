@@ -1,4 +1,4 @@
-# ADR-0003: NAV Calculation Method
+# ADR-0005: NAV Calculation Method
 
 ## Status
 Accepted
@@ -30,5 +30,5 @@ Oracle spot prices for assets like sUSDe can be stale/biased. NAV must reflect r
 - NAV mirrors strategy economics; sharePrice can deviate from instantaneous liquidation value but remains fair to all holders.
 
 ## Related ADRs
-- [ADR-0002: Vault Architecture v2](0002-vault-architecture.md) - Uses NAV for deltaNAV-based share minting
-- [ADR-0004: Deposit & Withdrawal Settlement](0004-deposit-withdrawal-settlement.md) - Applies NAV snapshots in epoch processing
+- [ADR-0004: Vault Architecture v2](0004-vault-architecture.md) - Uses NAV for deltaNAV-based share minting
+- [ADR-0006: Deposit & Withdrawal Settlement](0006-deposit-withdrawal-settlement.md) - Applies NAV snapshots in epoch processing
