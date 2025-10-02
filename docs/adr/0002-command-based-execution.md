@@ -27,13 +27,15 @@ Implement a **Command-Based Execution System** using a simple operation enum and
 
 ```solidity
 contract CommandBasedVault {
-    enum Op { FlashLoan, LendingDeposit, LendingWithdraw, LendingBorrow, LendingRepay, Swap, Transfer }
+    enum Op { FlashLoan, LendingDeposit, LendingWithdraw, LendingBorrow, LendingRepay, Swap }
     struct Cmd {
         Op op;
-        bytes data; // ABI-encoded arguments for this operation 
+        bytes data; // ABI-encoded arguments for this operation
     }
 }
 ```
+
+**IMPORTANT:** `Transfer` operation is **NOT** allowed in commands. All assets must remain within vault contracts. Transfers are only executed by vault logic itself, never by keeper-provided commands.
 
 ### Integration with BaseVault
 
@@ -80,10 +82,25 @@ Vault keeper should be able to call this function to execute arbitrary commands 
 - **Flash Loan Nesting**: Special handling needed for nested commands in flash loans
 
 ## Security Considerations
+
+### Command Restrictions
+- **NO Transfer operations:** Commands cannot move funds out of vault
+- All assets must remain in vault after command execution
+- Only vault logic (not keeper commands) can transfer assets to parent or users
+
+### Validation Requirements
 - Validate command sequences for known attack patterns
 - Add reentrancy protection for command execution
 - Ensure flash loan repayment is always possible
 - Validate slippage limits and deadlines for all swaps
+- Check that no commands attempt unauthorized token transfers
+
+### Invariants
+After executing any command sequence:
+- All borrowed flash loan funds must be repaid
+- All intermediate tokens must be converted to strategy assets
+- No tokens should be sent to external addresses
+- Vault's position must be internally consistent (collateral/debt ratios valid)
 
 ## Success Metrics
 - Command execution success rate > 99.5%

@@ -47,6 +47,10 @@ Where:
 
 ### Entry and Exit Rules
 - **Entry:** shares minted from **deltaNAV** only (`shares = deltaNAV / pricePerShare`)
+  - `NAV_before`: excludes queued deposit assets (they haven't entered strategies yet)
+  - `NAV_after`: includes newly deployed assets in child strategies
+  - `deltaNAV` captures actual value creation from deploying capital
+  - First deposit: `pricePerShare = 1e18` (1:1 ratio)
 - **Exit:** pay realized asset units proportionally; do **not** pay by NAV estimate (see ADR-0005)
 
 ## Consequences

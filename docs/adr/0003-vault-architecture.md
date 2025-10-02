@@ -28,7 +28,11 @@ We need a safe, fair, and simple vault system with multi-strategy composition. O
 ### Multi-Child Allocation Strategy
 When multiple child vaults are present:
 - **Target weights:** Each child vault has a configurable target allocation percentage (e.g., Child A: 60%, Child B: 40%).
-- **Deposit distribution:** New deposits are allocated to children based on target weights, adjusted to bring actual allocations closer to targets.
+- **Keeper-driven allocation:** Keeper (off-chain) determines actual allocation per epoch based on:
+  - Target weights and current allocations
+  - Available liquidity in underlying protocols
+  - Lending protocol limits (borrow caps, collateral caps)
+  - Gas optimization (may allocate 100% to one child if within threshold)
 - **Threshold-based flexibility:** If actual allocation is within `target ± threshold`, deposits may be directed entirely to one child for gas efficiency or liquidity management.
   - Example: If Child A target is 60% ± 5%, and current is 58%, new deposits can go 100% to Child A until it reaches 65%.
 - **Rebalancing:** When actual weights drift beyond threshold, future epochs gradually reconcile by adjusting deposit flows (no forced liquidations).
