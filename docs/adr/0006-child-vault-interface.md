@@ -182,6 +182,83 @@ Withdrawing 100 shares (10%):
 
 **Key insight:** `swapOut` can be greater than the proportional value due to PT trading at premium/discount. The formula `assets = swapOut - flashLoanRepay` ensures users get the actual realized value, not theoretical NAV.
 
+### Multi-Currency Debt Support
+
+Child vaults can hold debt denominated in **different stablecoins** than the base token to optimize borrow rates.
+
+**Example:** Base token = USDC, Debt = USDT
+
+**Deposit flow with USDT debt:**
+```solidity
+commands = [
+  { op: Swap, data: encode(1500 USDC → 1500 PT) },
+  { op: LendingDeposit, data: encode(PT, 1500) },
+  { op: LendingBorrow, data: encode(USDT, 1002) },  // borrow USDT instead of USDC
+  { op: Swap, data: encode(1002 USDT → 1001 USDC) }, // convert to base for flash loan repay
+]
+
+Result: 1500 PT collateral, 1002 USDT debt, ~1 USDC dust
+```
+
+**Withdrawal flow with USDT debt:**
+```solidity
+// Proportional calculations:
+collateralToWithdraw = 150 PT (10%)
+debtToRepay = 100.2 USDT (10% of 1002 USDT)
+
+// Parent sends flashLoan in USDC, child converts:
+1. Swap 101.2 USDC → 101 USDT (with buffer for slippage)
+2. Repay 100.2 USDT debt (0.8 USDT dust remains)
+3. Withdraw 150 PT collateral
+4. Swap 150 PT → 155 USDC
+5. assets = 155 - 101.2 = 53.8 USDC
+```
+
+**NAV calculation with multi-currency debt:**
+```solidity
+function _calculateTotalAssets() returns (uint256) {
+    // Collateral value (in base token terms)
+    uint256 collateralValue = pendleOracle.getPtToAssetRate(market) * collateralAmount;
+
+    // Debt value (convert to base token using oracle)
+    uint256 debtValue = oracle.convert(debtAmount, debtToken, baseToken);
+
+    // Dust (ignored if < threshold, e.g., 10 USDC)
+    uint256 cash = dustAmount < DUST_THRESHOLD ? 0 : dustAmount;
+
+    return collateralValue - debtValue + cash;
+}
+```
+
+**Design decisions:**
+
+1. **Separate strategies for different debt currencies:**
+   - Child A: USDC debt (Morpho)
+   - Child B: USDT debt (Aave)
+   - Child C: DAI debt (Compound)
+   - Rebalancing between them = migration flow (withdraw from A, deposit to B)
+
+2. **Keeper responsibilities:**
+   - Calculate exact borrow amounts off-chain
+   - Include sufficient buffer for slippage
+   - Monitor debt accrual and update calculations
+
+3. **Dust management:**
+   - Ignored in NAV if below threshold (e.g., 10 USDC equivalent)
+   - Cleaned up during rebalance operations
+   - Can swap dust → base token or → yield-bearing token
+   - Max dust per child: 50 USDC equivalent (governance parameter)
+
+4. **Oracle requirements:**
+   - Chainlink price feeds for stablecoin pairs (USDT/USD, USDC/USD, DAI/USD)
+   - Staleness check: max 1 hour
+   - Deviation threshold: ±2% (revert if exceeded)
+
+5. **Benefits:**
+   - 1-2% difference in borrow rates → 5-10% difference in equity returns (with 5x leverage)
+   - Access to deeper liquidity markets
+   - Flexibility when specific stablecoin markets are unavailable
+
 **Key security properties:**
 - ✅ Proportional amounts calculated **on-chain** (keeper cannot manipulate)
 - ✅ Unwind sequence is **fixed by strategy implementation**
