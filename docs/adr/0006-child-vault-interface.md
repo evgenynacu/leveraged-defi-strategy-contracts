@@ -50,10 +50,10 @@ interface IChildVault {
 
     /// @notice Withdraw assets by burning shares (proportional unwind)
     /// @param shares Amount of shares to burn
-    /// @param commands ABI-encoded command sequence for unwinding position
+    /// @param params Strategy-specific parameters (e.g., swap routes, flash loan providers)
     /// @return assets Actual assets returned to parent
-    /// @dev Does NOT calculate totalAssets (gas optimization)
-    function withdraw(uint256 shares, bytes calldata commands)
+    /// @dev Uses FIXED proportional logic defined by strategy, NOT arbitrary commands
+    function withdraw(uint256 shares, bytes calldata params)
         external
         returns (uint256 assets);
 }
@@ -96,25 +96,33 @@ function deposit(uint256 assets, bytes calldata commands)
 }
 ```
 
-### Withdrawal Logic (proportional, no NAV calculation)
+### Withdrawal Logic (fixed proportional unwind)
+
+**Security Design:** Withdrawal uses **fixed on-chain logic** to ensure proportional unwind and prevent keeper manipulation.
 
 ```solidity
-function withdraw(uint256 shares, bytes calldata commands)
+function withdraw(uint256 shares, bytes calldata params)
     external
     onlyParent
     returns (uint256 assets)
 {
-    // Execute unwind commands (e.g., FlashLoan -> Repay -> Withdraw -> Swap -> Repay)
-    assets = _executeCommands(commands);
+    // FIXED: proportional calculation controlled on-chain
+    // FIXED: unwind sequence defined by strategy implementation
+    // Keeper can only provide execution parameters (swap routes, etc.)
+    // that cannot be computed on-chain
 
     totalShares -= shares;
-
     emit ChildWithdraw(shares, assets);
     return assets;
 }
 ```
 
-**Key insight:** Withdraw does NOT call `totalAssets()` - massive gas savings. Parent withdraws proportionally based on shares.
+**Key security properties:**
+- ✅ Proportional amounts calculated **on-chain** (keeper cannot manipulate)
+- ✅ Unwind sequence is **fixed by strategy implementation**
+- ✅ Keeper only provides **off-chain parameters** (e.g., swap routes, flash loan providers)
+- ✅ No arbitrary commands allowed (unlike deposit/rebalance)
+- ✅ No expensive `totalAssets()` calls needed
 
 ### Gas Optimization
 
@@ -132,9 +140,39 @@ function withdraw(uint256 shares, bytes calldata commands)
 - Round down on share minting to avoid over-issuance
 - Round down on asset withdrawal to protect vault
 
+### Rebalance Operations (arbitrary commands with invariants)
+
+Child vaults may implement a `rebalance()` function for keeper-initiated optimizations:
+
+```solidity
+function rebalance(bytes calldata commands) external onlyKeeper {
+    uint256 navBefore = _calculateTotalAssets();
+
+    // Execute arbitrary commands (ADR-0002)
+    _executeCommands(commands);
+
+    uint256 navAfter = _calculateTotalAssets();
+
+    // INVARIANT: NAV should not decrease significantly
+    require(navAfter >= navBefore * threshold / 100, "NAV decreased");
+}
+```
+
+**Use cases:** refinance debt, adjust leverage, migrate protocols, compound rewards.
+
+## Summary: Command Usage by Operation
+
+| Operation | Commands Type | Security Model |
+|-----------|---------------|----------------|
+| **Deposit** | Arbitrary (ADR-0002) | deltaNAV accounting prevents dilution |
+| **Withdraw** | **FIXED logic** | Proportional calculation on-chain |
+| **Rebalance** | Arbitrary (ADR-0002) | NAV invariant checks |
+
 ## Consequences
-- Easy integration of heterogeneous strategies.
-- Parent can perform accurate proportional exits across children.
+- Easy integration of heterogeneous strategies
+- Parent can perform accurate proportional exits across children
+- Withdrawal security through fixed proportional logic (no keeper manipulation possible)
+- Flexibility for deposits and rebalancing with proper invariant checks
 
 ## Related ADRs
 - [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Defines parent-child relationship and multi-child allocation

@@ -35,9 +35,54 @@ When multiple child vaults are present:
   - Gas optimization (may allocate 100% to one child if within threshold)
 - **Threshold-based flexibility:** If actual allocation is within `target ± threshold`, deposits may be directed entirely to one child for gas efficiency or liquidity management.
   - Example: If Child A target is 60% ± 5%, and current is 58%, new deposits can go 100% to Child A until it reaches 65%.
-- **Rebalancing:** When actual weights drift beyond threshold, future epochs gradually reconcile by adjusting deposit flows (no forced liquidations).
+- **Rebalancing:** When actual weights drift beyond threshold, reconciliation happens via:
+  - **Organic rebalancing:** Future deposit/withdrawal flows adjusted to bring weights back to target (no forced liquidations)
+  - **Active rebalancing:** Keeper-initiated `rebalance()` function to move assets between children when necessary
 - **Liquidity awareness:** Respect each child's withdrawability; if a child is illiquid during withdrawal, deliver its realizable portion and queue the remainder (see ADR-0005).
 - **Transparency:** Expose per-child values and current vs target allocations via view functions.
+
+### Parent Vault Rebalancing
+
+Parent vault implements `rebalance()` for moving assets between children:
+
+```solidity
+function rebalance(
+    uint256[] calldata withdrawals,  // shares to withdraw from each child
+    uint256[] calldata deposits,     // assets to deposit to each child
+    bytes[] calldata withdrawParams, // params for each child withdrawal
+    bytes[] calldata depositCommands // commands for each child deposit
+) external onlyKeeper {
+    uint256 navBefore = _calculateTotalNAV();
+
+    // 1. Withdraw from over-allocated children
+    for (uint i = 0; i < withdrawals.length; i++) {
+        if (withdrawals[i] > 0) {
+            children[i].withdraw(withdrawals[i], withdrawParams[i]);
+        }
+    }
+
+    // 2. Deposit to under-allocated children
+    for (uint i = 0; i < deposits.length; i++) {
+        if (deposits[i] > 0) {
+            children[i].deposit(deposits[i], depositCommands[i]);
+        }
+    }
+
+    uint256 navAfter = _calculateTotalNAV();
+
+    // INVARIANT: NAV should not decrease significantly (only gas/slippage)
+    require(navAfter >= navBefore * 99 / 100, "NAV decreased too much");
+
+    // INVARIANT: weights must be within thresholds after rebalance
+    _checkWeightInvariants();
+}
+```
+
+**Use cases:**
+- Move assets from Child A to Child B when weights drift beyond threshold
+- Migrate from deprecated strategy to new strategy
+- Respond to changing market conditions (e.g., better yield in different protocol)
+- Reduce exposure to strategy approaching capacity limits
 
 ## Consequences
 - Honest entry and exit independent of oracle noise.

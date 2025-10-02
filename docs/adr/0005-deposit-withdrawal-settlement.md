@@ -113,13 +113,37 @@ We need fair batching without oracle reliance, supporting multiple children and 
 - No partial state changes
 - Keeper can retry with adjusted parameters (different allocation, different commands)
 
+### Rebalancing Between Children
+
+Parent vault implements `rebalance()` for active weight management:
+
+**When needed:**
+- Actual weights drift beyond target ± threshold
+- Migration to new strategy
+- Response to changing market conditions
+
+**Process:**
+1. Keeper calls `rebalance(withdrawals, deposits, params, commands)`
+2. Withdraw from over-allocated children (using fixed proportional logic, ADR-0006)
+3. Deposit to under-allocated children (using arbitrary commands, ADR-0006)
+4. Verify NAV invariant (minimal decrease for gas/slippage only)
+5. Verify weight invariants (back within thresholds)
+
+**Security:**
+- Same withdrawal security as user withdrawals (fixed proportional logic)
+- Same deposit security as user deposits (deltaNAV accounting)
+- Additional NAV and weight invariant checks
+
+See ADR-0003 for detailed rebalance logic.
+
 ### Access Control
-- **Keeper role:** Backend service that calls `processEpoch()` and `processWithdrawals()`
+- **Keeper role:** Backend service that calls `processEpoch()`, `processWithdrawals()`, and `rebalance()`
 - Keeper decides when and where to allocate assets
 - Keeper must respect on-chain invariants:
   - Target weight percentages and thresholds (ADR-0003)
   - Slippage protection (`minSharesOut` for deposits, `minAssetsOut` for withdrawals)
   - Single-owner constraint (only parent can call child vaults)
+  - NAV preservation (rebalance cannot significantly decrease NAV)
 - Keeper provides optimized execution paths via commands (ADR-0002)
 
 ## Consequences
