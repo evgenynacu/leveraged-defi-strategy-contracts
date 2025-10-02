@@ -36,22 +36,32 @@ We need fair batching without oracle reliance, supporting multiple children and 
 4. Users can make multiple deposits in same epoch (separate requests)
 5. Users can cancel pending deposits before epoch processing
 
-**Epoch Processing (`processEpoch()` called by keeper):**
-1. Initialize `NAV_before` with parent's cash balance (excludes queued deposits)
-2. Initialize `NAV_after` with parent's cash balance minus allocated amounts
-3. Keeper determines allocation to children based on:
+**Epoch Processing (`processDeposits()` called by keeper):**
+1. Initialize NAV accumulators:
+   ```
+   NAV_before = 0
+   NAV_after = 0
+   ```
+2. Keeper determines allocation to children based on:
    - Available liquidity in protocols
    - Lending limits not exceeded
    - Target weights and thresholds (ADR-0003)
-4. Keeper provides commands (ADR-0002) for each child vault deposit
-5. Execute deposits to children, accumulate NAV values:
+3. Keeper provides commands (ADR-0002) for each child vault deposit
+4. Execute deposits to children, accumulate NAV values:
    ```solidity
    for each child:
-       (shares, childNavBefore, childNavAfter) = child.deposit(allocation, commands)
+       (shares, childNavBefore, childNavAfter) = child.deposit(allocation, flashLoanRepay, commands)
        NAV_before += childNavBefore
        NAV_after += childNavAfter
    ```
    **Gas optimization:** Each child's `totalAssets()` called exactly 2 times (pre/post), no duplicates
+5. Add parent's cash buffer to NAV:
+   ```
+   // NAV_before: only assets already in strategies (no pending deposits)
+   // NAV_after: assets in strategies + remaining cash buffer
+   NAV_after += parentRemainingCash  // cash kept for liquidity after allocations
+   ```
+   **Important:** Pending deposits are NOT included in NAV_before because they haven't entered strategies yet.
 6. Calculate minted shares:
    ```
    deltaNAV = NAV_after - NAV_before
@@ -88,7 +98,7 @@ We need fair batching without oracle reliance, supporting multiple children and 
    ```solidity
    for each child:
        childSharesToWithdraw = child.totalShares() × f
-       assetsReceived = child.withdraw(childSharesToWithdraw, commands)
+       assetsReceived = child.withdraw(childSharesToWithdraw, flashLoanRepay, params)
        totalAssetsReceived += assetsReceived
    ```
    **Gas optimization:** No `totalAssets()` calls needed (see ADR-0006)
@@ -102,42 +112,288 @@ We need fair batching without oracle reliance, supporting multiple children and 
 8. Transfer assets to users (or queue if partially filled)
 
 **Partial Fills (illiquidity handling):**
-- If child cannot withdraw full amount → delivers what's realizable
-- Remainder stays in child, queued for future epochs
-- Shares burned proportionally to delivered fraction
-- User receives partial fulfillment, remainder stays queued
+
+Keeper calculates available liquidity before calling `processWithdrawals()`:
+1. Check each child's withdrawable amount
+2. Calculate total available liquidity across all children + cash
+3. If insufficient for all requests → process only partial fulfillment
+
+**Withdrawal Request tracking:**
+```solidity
+struct WithdrawalRequest {
+    address user;
+    uint256 sharesRequested;    // original request
+    uint256 sharesFulfilled;    // cumulative fulfilled across epochs
+    uint256 minAssetsOut;       // slippage protection
+}
+```
+
+**Partial fulfillment process:**
+1. Keeper processes only what's liquid (e.g., 60% of queue)
+2. Users with fulfilled requests receive assets
+3. Remaining 40% stays queued with `sharesFulfilled` updated
+4. Next epoch: keeper checks liquidity again and processes more
+5. Shares burned incrementally as each portion is fulfilled
+
+## Flash Loan Architecture
+
+**Key Design:** Parent vault manages all flash loans to coordinate complex operations across children.
+
+### Why Parent Manages Flash Loans
+
+1. **Single flash loan** for multiple children (coordination efficiency)
+2. **Atomic coordination** across deposit/withdraw/rebalance operations
+3. **Simple child vaults** - children don't manage flash loan lifecycle
+4. **Enables cross-child migrations** - move leveraged positions between strategies
+
+### Flash Loan Provider
+
+**Primary provider: Morpho (zero fee flash loans)**
+- Sufficient liquidity for protocol operations
+- Zero fees simplify accounting (no fee distribution needed)
+- If Morpho liquidity insufficient in future, can add other providers with fee handling
+
+### Operation Types
+
+Parent's `onFlashLoan` callback handles different operation types:
+
+```typescript
+enum OperationType {
+    DEPOSIT,            // processDeposits - user deposits to children
+    WITHDRAW,           // processWithdrawals - user withdrawals from children
+    REBALANCE           // rebalance - move assets between children or optimize within single child
+}
+```
+
+### Flow Pattern
+
+```
+Parent Operation
+  → Flash Loan Provider: flashLoan(totalAmount)
+    → Parent: onFlashLoan(operation, data)
+      → Decode operation type
+      → Child operations (transfer liquidity + call functions)
+      → Collect repayments (transferFrom approved amounts)
+      → Return to flash loan callback
+    → Flash loan auto-repays
+```
+
+### Deposit Flow with Flash Loan
+
+```mermaid
+sequenceDiagram
+    participant K as Keeper
+    participant P as Parent Vault
+    participant FL as Flash Loan Provider
+    participant C1 as Child Vault 1
+    participant C2 as Child Vault 2
+
+    K->>P: processDeposits(allocations[], flashLoans[], commands[])
+
+    P->>FL: flashLoan(totalAmount)
+
+    FL->>P: onFlashLoan(amount, fee, data)
+
+    Note over P: NAV_before = cashInStrategies
+
+    loop For each child
+        P->>C1: transfer(userAssets + flashLoan)
+        P->>C1: deposit(userAssets, flashLoanRepay, commands)
+
+        Note over C1: Execute commands:<br/>- Swap USDC → PT<br/>- Deposit PT collateral<br/>- Borrow flashLoanRepay
+
+        C1->>C1: approve(parent, flashLoanRepay)
+        C1-->>P: (shares, navBefore, navAfter)
+
+        P->>C1: transferFrom(flashLoanRepay)
+
+        Note over P: Accumulate NAV values
+    end
+
+    Note over P: Calculate deltaNAV<br/>Mint shares to users
+
+    P->>FL: approve(amount + fee)
+    FL-->>P: (flash loan auto-repays)
+
+    P-->>K: Success
+```
+
+### Withdrawal Flow with Flash Loan
+
+```mermaid
+sequenceDiagram
+    participant K as Keeper
+    participant P as Parent Vault
+    participant FL as Flash Loan Provider
+    participant C1 as Child Vault 1
+    participant C2 as Child Vault 2
+
+    K->>P: processWithdrawals(flashLoans[], params[])
+
+    P->>FL: flashLoan(totalAmount)
+
+    FL->>P: onFlashLoan(amount, fee, data)
+
+    Note over P: Calculate fraction f
+
+    loop For each child
+        Note over P: childShares = child.totalShares() × f<br/>childFlashLoan = flashLoans[i]
+
+        P->>C1: transfer(childFlashLoan)
+        P->>C1: withdraw(childShares, flashLoanRepay, params)
+
+        Note over C1: FIXED proportional logic:<br/>- Repay debt using flashLoan<br/>- Withdraw collateral<br/>- Swap PT → USDC
+
+        C1->>C1: approve(parent, flashLoanRepay + assets)
+        C1-->>P: assets
+
+        P->>C1: transferFrom(flashLoanRepay + assets)
+
+        Note over P: Accumulate assets
+    end
+
+    Note over P: Add cash buffer × f<br/>Distribute to users<br/>Burn shares
+
+    P->>FL: approve(amount + fee)
+    FL-->>P: (flash loan auto-repays)
+
+    P-->>K: Success
+```
+
+### Unified Rebalance Flow
+
+Parent vault's single `rebalance()` function handles all rebalancing operations through a step-based approach:
+
+```mermaid
+sequenceDiagram
+    participant K as Keeper
+    participant P as Parent Vault
+    participant FL as Flash Loan Provider
+    participant C1 as Child Vault 1 (Morpho)
+    participant C2 as Child Vault 2 (Aave)
+
+    K->>P: rebalance(totalFlashLoan, steps[])
+
+    Note over K,P: steps = [<br/>  {childIndex: 0, op: Withdraw, data: ...},<br/>  {childIndex: 1, op: Deposit, data: ...}<br/>]
+
+    P->>FL: flashLoan(totalAmount)
+
+    FL->>P: onFlashLoan(amount, fee, data)
+
+    Note over P: NAV_before = calculateTotalNAV()
+
+    Note over P: Decode steps from flash loan data
+
+    loop For each RebalanceStep
+        Note over P: Deserialize step.data based on step.operation
+
+        alt step.operation == Withdraw
+            P->>C1: transfer(flashLoanRepay)
+            P->>C1: withdraw(shares, flashLoanRepay, params)
+
+            Note over C1: FIXED proportional logic:<br/>- Repay debt<br/>- Withdraw collateral<br/>- Swap to underlying
+
+            C1->>C1: approve(parent, flashLoanRepay + assets)
+            C1-->>P: assets
+            P->>C1: transferFrom(flashLoanRepay + assets)
+
+        else step.operation == Deposit
+            P->>C2: transfer(assets + flashLoanRepay)
+            P->>C2: deposit(assets, flashLoanRepay, commands)
+
+            Note over C2: Execute commands:<br/>- Swap to collateral<br/>- Deposit collateral<br/>- Borrow
+
+            C2->>C2: approve(parent, flashLoanRepay)
+            C2-->>P: (shares, navBefore, navAfter)
+            P->>C2: transferFrom(flashLoanRepay)
+
+        else step.operation == Internal
+            P->>C1: transfer(flashLoanRepay)
+            P->>C1: rebalance(flashLoanRepay, commands)
+
+            Note over C1: Internal optimization:<br/>- Refinance debt<br/>- Adjust leverage<br/>- Compound rewards
+
+            C1->>C1: approve(parent, flashLoanRepay)
+            P->>C1: transferFrom(flashLoanRepay)
+        end
+    end
+
+    Note over P: NAV_after = calculateTotalNAV()
+
+    P->>P: require(NAV_after >= NAV_before × 0.99)
+    P->>P: checkWeightInvariants()
+
+    P->>FL: approve(amount + fee)
+    FL-->>P: (flash loan auto-repays)
+
+    P-->>K: Success
+```
+
+**Example step configurations:**
+
+1. **Cross-child migration (Morpho → Aave):**
+```typescript
+steps = [
+  {
+    childIndex: 0,
+    operation: RebalanceOp.Withdraw,
+    data: encode(1000 shares, 500 flashLoanRepay, morphoParams)
+  },
+  {
+    childIndex: 1,
+    operation: RebalanceOp.Deposit,
+    data: encode(950 assets, 300 flashLoanRepay, aaveCommands)
+  }
+]
+```
+
+2. **Internal optimization:**
+```typescript
+steps = [
+  {
+    childIndex: 0,
+    operation: RebalanceOp.Internal,
+    data: encode(1000 flashLoanRepay, refinanceCommands)
+  }
+]
+```
+
+3. **Complex multi-step rebalancing:**
+```typescript
+steps = [
+  {childIndex: 0, operation: Withdraw, data: ...},
+  {childIndex: 1, operation: Withdraw, data: ...},
+  {childIndex: 2, operation: Deposit, data: ...},
+  {childIndex: 0, operation: Internal, data: ...}
+]
+```
 
 ### Error Handling
-- **Atomic execution:** All operations in `processEpoch()` are atomic
+- **Atomic execution:** All operations in `processDeposits()` are atomic
 - If any child deposit/withdrawal fails → entire epoch reverts
 - No partial state changes
 - Keeper can retry with adjusted parameters (different allocation, different commands)
 
-### Rebalancing Between Children
+### Rebalancing Overview
 
-Parent vault implements `rebalance()` for active weight management:
+Parent vault implements unified `rebalance()` for all rebalancing operations (see unified flow diagram above).
 
 **When needed:**
 - Actual weights drift beyond target ± threshold
 - Migration to new strategy
 - Response to changing market conditions
-
-**Process:**
-1. Keeper calls `rebalance(withdrawals, deposits, params, commands)`
-2. Withdraw from over-allocated children (using fixed proportional logic, ADR-0006)
-3. Deposit to under-allocated children (using arbitrary commands, ADR-0006)
-4. Verify NAV invariant (minimal decrease for gas/slippage only)
-5. Verify weight invariants (back within thresholds)
+- Internal child optimization (refinance, leverage adjustment, rewards)
 
 **Security:**
-- Same withdrawal security as user withdrawals (fixed proportional logic)
-- Same deposit security as user deposits (deltaNAV accounting)
-- Additional NAV and weight invariant checks
+- Withdrawal operations use fixed proportional logic (same as user withdrawals)
+- Deposit operations use deltaNAV accounting (same as user deposits)
+- Internal operations protected by NAV invariant checks
+- Additional NAV and weight invariant checks after all steps complete
 
-See ADR-0003 for detailed rebalance logic.
+See ADR-0003 for detailed unified rebalance design.
 
 ### Access Control
-- **Keeper role:** Backend service that calls `processEpoch()`, `processWithdrawals()`, and `rebalance()`
+- **Keeper role:** Backend service that calls `processDeposits()`, `processWithdrawals()`, and `rebalance()`
 - Keeper decides when and where to allocate assets
 - Keeper must respect on-chain invariants:
   - Target weight percentages and thresholds (ADR-0003)

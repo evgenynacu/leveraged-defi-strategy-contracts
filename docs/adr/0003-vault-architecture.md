@@ -41,30 +41,63 @@ When multiple child vaults are present:
 - **Liquidity awareness:** Respect each child's withdrawability; if a child is illiquid during withdrawal, deliver its realizable portion and queue the remainder (see ADR-0005).
 - **Transparency:** Expose per-child values and current vs target allocations via view functions.
 
-### Parent Vault Rebalancing
+### Unified Rebalancing Architecture
 
-Parent vault implements `rebalance()` for moving assets between children:
+Parent vault implements a single `rebalance()` function that handles all rebalancing operations through a flexible step-based approach:
 
 ```solidity
+enum RebalanceOp { Withdraw, Deposit, Internal }
+
+struct RebalanceStep {
+    uint256 childIndex;   // which child vault to operate on
+    RebalanceOp operation; // type of operation
+    bytes data;           // operation-specific parameters (deserialized based on operation type)
+}
+
 function rebalance(
-    uint256[] calldata withdrawals,  // shares to withdraw from each child
-    uint256[] calldata deposits,     // assets to deposit to each child
-    bytes[] calldata withdrawParams, // params for each child withdrawal
-    bytes[] calldata depositCommands // commands for each child deposit
+    uint256 totalFlashLoan,
+    RebalanceStep[] calldata steps
 ) external onlyKeeper {
     uint256 navBefore = _calculateTotalNAV();
 
-    // 1. Withdraw from over-allocated children
-    for (uint i = 0; i < withdrawals.length; i++) {
-        if (withdrawals[i] > 0) {
-            children[i].withdraw(withdrawals[i], withdrawParams[i]);
-        }
-    }
+    // Single flash loan for entire rebalance sequence
+    flashLoanProvider.flashLoan(
+        totalFlashLoan,
+        abi.encode(OperationType.REBALANCE, steps)
+    );
+}
 
-    // 2. Deposit to under-allocated children
-    for (uint i = 0; i < deposits.length; i++) {
-        if (deposits[i] > 0) {
-            children[i].deposit(deposits[i], depositCommands[i]);
+function _executeRebalance(RebalanceStep[] memory steps) internal {
+    for (uint i = 0; i < steps.length; i++) {
+        RebalanceStep memory step = steps[i];
+        IChildVault child = children[step.childIndex];
+
+        if (step.operation == RebalanceOp.Withdraw) {
+            // Deserialize: (shares, flashLoanRepay, params)
+            (uint256 shares, uint256 flashLoanRepay, bytes memory params) =
+                abi.decode(step.data, (uint256, uint256, bytes));
+
+            underlying.transfer(address(child), flashLoanRepay);
+            uint256 assets = child.withdraw(shares, flashLoanRepay, params);
+            underlying.transferFrom(address(child), address(this), flashLoanRepay + assets);
+
+        } else if (step.operation == RebalanceOp.Deposit) {
+            // Deserialize: (assets, flashLoanRepay, commands)
+            (uint256 assets, uint256 flashLoanRepay, bytes memory commands) =
+                abi.decode(step.data, (uint256, uint256, bytes));
+
+            underlying.transfer(address(child), assets + flashLoanRepay);
+            (uint256 shares,,) = child.deposit(assets, flashLoanRepay, commands);
+            underlying.transferFrom(address(child), address(this), flashLoanRepay);
+
+        } else if (step.operation == RebalanceOp.Internal) {
+            // Deserialize: (flashLoanRepay, commands)
+            (uint256 flashLoanRepay, bytes memory commands) =
+                abi.decode(step.data, (uint256, bytes));
+
+            underlying.transfer(address(child), flashLoanRepay);
+            child.rebalance(flashLoanRepay, commands);
+            underlying.transferFrom(address(child), address(this), flashLoanRepay);
         }
     }
 
@@ -79,10 +112,37 @@ function rebalance(
 ```
 
 **Use cases:**
-- Move assets from Child A to Child B when weights drift beyond threshold
-- Migrate from deprecated strategy to new strategy
-- Respond to changing market conditions (e.g., better yield in different protocol)
-- Reduce exposure to strategy approaching capacity limits
+
+1. **Cross-child migration** - Move assets from Child A to Child B:
+   ```solidity
+   steps = [
+       RebalanceStep(childA, Withdraw, encode(shares, flashLoan, params)),
+       RebalanceStep(childB, Deposit, encode(assets, flashLoan, commands))
+   ]
+   ```
+
+2. **Internal optimization** - Refinance debt within single child:
+   ```solidity
+   steps = [
+       RebalanceStep(childA, Internal, encode(flashLoan, refinanceCommands))
+   ]
+   ```
+
+3. **Complex rebalancing** - Combine multiple operations atomically:
+   ```solidity
+   steps = [
+       RebalanceStep(childA, Withdraw, ...),
+       RebalanceStep(childB, Withdraw, ...),
+       RebalanceStep(childC, Deposit, ...),
+       RebalanceStep(childA, Internal, ...)  // optimize after partial withdrawal
+   ]
+   ```
+
+**Benefits:**
+- Single entry point for all rebalancing operations
+- Flexible composition of operations in single atomic transaction
+- Efficient flash loan usage (one loan for entire sequence)
+- Clear separation between cross-child and internal operations
 
 ## Consequences
 - Honest entry and exit independent of oracle noise.

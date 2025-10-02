@@ -39,23 +39,31 @@ interface IChildVault {
 
     /// @notice Deposit assets and execute strategy commands
     /// @param assets Amount of underlying to deposit (e.g., USDC)
+    /// @param flashLoanRepay Amount to approve parent for flash loan repayment
     /// @param commands ABI-encoded command sequence (ADR-0002)
     /// @return shares Minted shares based on deltaNAV
     /// @return navBefore Total assets before executing commands
     /// @return navAfter Total assets after executing commands
     /// @dev Parent uses navBefore/navAfter to avoid recalculating totalAssets
-    function deposit(uint256 assets, bytes calldata commands)
+    function deposit(uint256 assets, uint256 flashLoanRepay, bytes calldata commands)
         external
         returns (uint256 shares, uint256 navBefore, uint256 navAfter);
 
     /// @notice Withdraw assets by burning shares (proportional unwind)
     /// @param shares Amount of shares to burn
+    /// @param flashLoanRepay Amount to approve parent for flash loan repayment
     /// @param params Strategy-specific parameters (e.g., swap routes, flash loan providers)
     /// @return assets Actual assets returned to parent
     /// @dev Uses FIXED proportional logic defined by strategy, NOT arbitrary commands
-    function withdraw(uint256 shares, bytes calldata params)
+    function withdraw(uint256 shares, uint256 flashLoanRepay, bytes calldata params)
         external
         returns (uint256 assets);
+
+    /// @notice Execute internal rebalancing operations
+    /// @param flashLoanRepay Amount to approve parent for flash loan repayment
+    /// @param commands ABI-encoded command sequence (ADR-0002)
+    /// @dev Uses arbitrary commands with NAV invariant checks
+    function rebalance(uint256 flashLoanRepay, bytes calldata commands) external;
 }
 ```
 
@@ -64,7 +72,7 @@ interface IChildVault {
 Child vaults use the **same deltaNAV approach as parent** (ADR-0004, ADR-0005):
 
 ```solidity
-function deposit(uint256 assets, bytes calldata commands)
+function deposit(uint256 assets, uint256 flashLoanRepay, bytes calldata commands)
     external
     onlyParent
     returns (uint256 shares, uint256 navBefore, uint256 navAfter)
@@ -72,7 +80,7 @@ function deposit(uint256 assets, bytes calldata commands)
     // 1. Snapshot NAV before deploying capital
     navBefore = _calculateTotalAssets(); // expensive call
 
-    // 2. Execute strategy commands (e.g., FlashLoan -> Swap -> Deposit -> Borrow -> Repay)
+    // 2. Execute strategy commands (e.g., Swap -> Deposit -> Borrow)
     _executeCommands(commands);
 
     // 3. Snapshot NAV after deploying capital
@@ -82,7 +90,10 @@ function deposit(uint256 assets, bytes calldata commands)
     uint256 deltaNAV = navAfter - navBefore;
 
     if (totalShares == 0) {
-        shares = assets; // first deposit: 1:1 ratio
+        // First deposit: mint shares at 1e18 scale
+        // shares = deltaNAV * 1e18 / (10 ** underlyingDecimals)
+        // Example: deltaNAV = 1000 USDC (1000e6) → shares = 1000e6 * 1e18 / 1e6 = 1000e18
+        shares = (deltaNAV * 1e18) / (10 ** underlyingDecimals);
     } else {
         // shares = deltaNAV / pricePerShare
         // pricePerShare = navBefore / totalShares
@@ -90,6 +101,9 @@ function deposit(uint256 assets, bytes calldata commands)
     }
 
     totalShares += shares;
+
+    // 5. Approve parent to collect flash loan repayment
+    underlyingToken.approve(parent, flashLoanRepay);
 
     emit ChildDeposit(assets, navBefore, navAfter, shares);
     return (shares, navBefore, navAfter);
@@ -101,7 +115,7 @@ function deposit(uint256 assets, bytes calldata commands)
 **Security Design:** Withdrawal uses **fixed on-chain logic** to ensure proportional unwind and prevent keeper manipulation.
 
 ```solidity
-function withdraw(uint256 shares, bytes calldata params)
+function withdraw(uint256 shares, uint256 flashLoanRepay, bytes calldata params)
     external
     onlyParent
     returns (uint256 assets)
@@ -111,11 +125,62 @@ function withdraw(uint256 shares, bytes calldata params)
     // Keeper can only provide execution parameters (swap routes, etc.)
     // that cannot be computed on-chain
 
+    // 1. Calculate proportional amounts (on-chain, fixed logic)
+    uint256 collateralToWithdraw = (totalCollateral * shares) / totalShares;
+    uint256 debtToRepay = (totalDebt * shares) / totalShares;
+
+    // 2. Repay debt using flash loan (received via transfer from parent)
+    _repayDebt(debtToRepay);  // uses flashLoanRepay tokens
+
+    // 3. Withdraw collateral (now possible since debt is reduced)
+    _withdrawCollateral(collateralToWithdraw);  // get PT tokens
+
+    // 4. Swap collateral to underlying (using params for route)
+    uint256 swapOut = _swap(collateralToWithdraw, params);  // PT → USDC
+
+    // 5. Calculate net assets for user
+    // assets = everything received from swap - flash loan to be repaid
+    assets = swapOut - flashLoanRepay;
+
     totalShares -= shares;
+
+    // 6. Approve parent to collect flash loan repayment + withdrawn assets
+    underlyingToken.approve(parent, flashLoanRepay + assets);
+
     emit ChildWithdraw(shares, assets);
     return assets;
 }
 ```
+
+**Example withdrawal flow:**
+
+Initial state:
+- Total collateral: 3000 PT tokens
+- Total debt: 2000 USDC
+- Total shares: 1000
+
+Withdrawing 100 shares (10%):
+```
+1. Calculate proportional amounts:
+   collateralToWithdraw = 3000 * 100/1000 = 300 PT
+   debtToRepay = 2000 * 100/1000 = 200 USDC
+
+2. Parent sends flashLoanRepay = 200 USDC (via transfer)
+
+3. Repay debt: 200 USDC (child balance now 0 USDC)
+
+4. Withdraw collateral: 300 PT (child balance now 300 PT)
+
+5. Swap: 300 PT → 310 USDC (price includes PT premium/discount)
+
+6. Calculate assets: 310 - 200 = 110 USDC
+
+7. Approve parent: 200 + 110 = 310 USDC total
+   - 200 USDC returns to parent for flash loan repayment
+   - 110 USDC goes to user as withdrawn assets
+```
+
+**Key insight:** `swapOut` can be greater than the proportional value due to PT trading at premium/discount. The formula `assets = swapOut - flashLoanRepay` ensures users get the actual realized value, not theoretical NAV.
 
 **Key security properties:**
 - ✅ Proportional amounts calculated **on-chain** (keeper cannot manipulate)
@@ -136,6 +201,24 @@ function withdraw(uint256 shares, bytes calldata params)
 - Children: execute commands, no NAV calculation
 - **Total: 0 expensive calls** 🎉
 
+### Share Scale Normalization
+
+**All child vault shares are normalized to 1e18 scale** regardless of underlying token decimals:
+
+- **First deposit:** `shares = (deltaNAV * 1e18) / (10 ** underlyingDecimals)`
+  - USDC (6 decimals): 1000 USDC (1000e6) → 1000e18 shares
+  - DAI (18 decimals): 1000 DAI (1000e18) → 1000e18 shares
+  - WBTC (8 decimals): 1 WBTC (1e8) → 1e18 shares
+
+- **Subsequent deposits:** `shares = (deltaNAV * totalShares) / navBefore`
+  - Naturally maintains 1e18 scale since totalShares is already 1e18 scaled
+
+- **Benefits:**
+  - Consistent `pricePerShare` calculation across all tokens
+  - Avoids precision loss for low-decimal tokens
+  - Simplifies cross-child accounting in parent vault
+  - Compatible with ERC4626 standard (if needed in future)
+
 ### Rounding
 - Round down on share minting to avoid over-issuance
 - Round down on asset withdrawal to protect vault
@@ -145,16 +228,20 @@ function withdraw(uint256 shares, bytes calldata params)
 Child vaults may implement a `rebalance()` function for keeper-initiated optimizations:
 
 ```solidity
-function rebalance(bytes calldata commands) external onlyKeeper {
+function rebalance(uint256 flashLoanRepay, bytes calldata commands) external onlyParent {
     uint256 navBefore = _calculateTotalAssets();
 
     // Execute arbitrary commands (ADR-0002)
+    // Examples: refinance debt, adjust leverage, migrate protocols, compound rewards
     _executeCommands(commands);
 
     uint256 navAfter = _calculateTotalAssets();
 
     // INVARIANT: NAV should not decrease significantly
-    require(navAfter >= navBefore * threshold / 100, "NAV decreased");
+    require(navAfter >= navBefore * 99 / 100, "NAV decreased");
+
+    // Approve parent to collect flash loan repayment
+    underlyingToken.approve(parent, flashLoanRepay);
 }
 ```
 
