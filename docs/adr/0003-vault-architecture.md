@@ -22,7 +22,7 @@ We need a safe, fair, and simple vault system with multi-strategy composition. O
 - **Epochs:** Users submit deposits/withdrawals into queues; `processEpoch()` executes atomically.
 - **Entry:** Mint parent shares from **deltaNAV = NAV_after − NAV_before** after real child deposits.
 - **Exit:** Redeem strictly by **proportional units** of each asset (incl. cash); optional conversion to cash is done **proportionally**.
-- **Child vaults:** single owner (parent), synchronous `deposit/withdraw`, PnL-based accounting.
+- **Child strategies:** single owner (parent), synchronous operations, no internal shares, multi-token support.
 - **Rounding:** round down to the vault on share/asset conversions to avoid dust exploits.
 
 ### Multi-Child Allocation Strategy
@@ -70,34 +70,71 @@ function rebalance(
 function _executeRebalance(RebalanceStep[] memory steps) internal {
     for (uint i = 0; i < steps.length; i++) {
         RebalanceStep memory step = steps[i];
-        IChildVault child = children[step.childIndex];
+        IChildStrategy child = children[step.childIndex];
 
         if (step.operation == RebalanceOp.Withdraw) {
-            // Deserialize: (shares, flashLoanRepay, params)
-            (uint256 shares, uint256 flashLoanRepay, bytes memory params) =
-                abi.decode(step.data, (uint256, uint256, bytes));
+            // Deserialize: (percentage, outputToken, providedToken, providedAmount, expectedToken, expectedAmount, data)
+            (uint256 percentage, address outputToken, address providedToken, uint256 providedAmount,
+             address expectedToken, uint256 expectedAmount, bytes memory data) =
+                abi.decode(step.data, (uint256, address, address, uint256, address, uint256, bytes));
 
-            underlying.transfer(address(child), flashLoanRepay);
-            uint256 assets = child.withdraw(shares, flashLoanRepay, params);
-            underlying.transferFrom(address(child), address(this), flashLoanRepay + assets);
+            // Transfer provided liquidity to child if any
+            if (providedToken != address(0)) {
+                IERC20(providedToken).transfer(address(child), providedAmount);
+            }
+
+            // Execute withdrawal
+            uint256 actualWithdrawn = child.withdraw(
+                percentage, outputToken, providedToken, providedAmount, expectedToken, expectedAmount, data
+            );
+
+            // Collect withdrawn assets
+            IERC20(outputToken).transferFrom(address(child), address(this), actualWithdrawn);
+
+            // Collect expected tokens if any
+            if (expectedToken != address(0)) {
+                IERC20(expectedToken).transferFrom(address(child), address(this), expectedAmount);
+            }
 
         } else if (step.operation == RebalanceOp.Deposit) {
-            // Deserialize: (assets, flashLoanRepay, commands)
-            (uint256 assets, uint256 flashLoanRepay, bytes memory commands) =
-                abi.decode(step.data, (uint256, uint256, bytes));
+            // Deserialize: (depositToken, depositAmount, providedToken, providedAmount, expectedToken, expectedAmount, data)
+            (address depositToken, uint256 depositAmount, address providedToken, uint256 providedAmount,
+             address expectedToken, uint256 expectedAmount, bytes memory data) =
+                abi.decode(step.data, (address, uint256, address, uint256, address, uint256, bytes));
 
-            underlying.transfer(address(child), assets + flashLoanRepay);
-            (uint256 shares,,) = child.deposit(assets, flashLoanRepay, commands);
-            underlying.transferFrom(address(child), address(this), flashLoanRepay);
+            // Transfer deposit assets to child
+            IERC20(depositToken).transfer(address(child), depositAmount);
+
+            // Transfer provided liquidity if any
+            if (providedToken != address(0)) {
+                IERC20(providedToken).transfer(address(child), providedAmount);
+            }
+
+            // Execute deposit
+            child.deposit(depositToken, depositAmount, providedToken, providedAmount, expectedToken, expectedAmount, data);
+
+            // Collect expected tokens if any
+            if (expectedToken != address(0)) {
+                IERC20(expectedToken).transferFrom(address(child), address(this), expectedAmount);
+            }
 
         } else if (step.operation == RebalanceOp.Internal) {
-            // Deserialize: (flashLoanRepay, commands)
-            (uint256 flashLoanRepay, bytes memory commands) =
-                abi.decode(step.data, (uint256, bytes));
+            // Deserialize: (providedToken, providedAmount, expectedToken, expectedAmount, data)
+            (address providedToken, uint256 providedAmount, address expectedToken, uint256 expectedAmount, bytes memory data) =
+                abi.decode(step.data, (address, uint256, address, uint256, bytes));
 
-            underlying.transfer(address(child), flashLoanRepay);
-            child.rebalance(flashLoanRepay, commands);
-            underlying.transferFrom(address(child), address(this), flashLoanRepay);
+            // Transfer provided liquidity if any
+            if (providedToken != address(0)) {
+                IERC20(providedToken).transfer(address(child), providedAmount);
+            }
+
+            // Execute rebalance
+            child.rebalance(providedToken, providedAmount, expectedToken, expectedAmount, data);
+
+            // Collect expected tokens if any
+            if (expectedToken != address(0)) {
+                IERC20(expectedToken).transferFrom(address(child), address(this), expectedAmount);
+            }
         }
     }
 
@@ -113,18 +150,33 @@ function _executeRebalance(RebalanceStep[] memory steps) internal {
 
 **Use cases:**
 
-1. **Cross-child migration** - Move assets from Child A to Child B:
+1. **Cross-child migration** - Move PT position from Morpho to Aave:
    ```solidity
    steps = [
-       RebalanceStep(childA, Withdraw, encode(shares, flashLoan, params)),
-       RebalanceStep(childB, Deposit, encode(assets, flashLoan, commands))
+       RebalanceStep(morphoChild, Withdraw, encode(
+           1e18,                    // percentage: 100%
+           PT_TOKEN,                // outputToken: receive PT
+           USDT_TOKEN, 2000e6,      // providedToken/Amount: flash loan for deleverage
+           address(0), 0,           // expectedToken/Amount: parent keeps liquidity
+           morphoParams
+       )),
+       RebalanceStep(aaveChild, Deposit, encode(
+           PT_TOKEN, ptAmount,      // depositToken/Amount: deposit received PT
+           address(0), 0,           // providedToken/Amount: no additional liquidity
+           USDT_TOKEN, 2000e6,      // expectedToken/Amount: strategy borrows and returns
+           aaveCommands
+       ))
    ]
    ```
 
 2. **Internal optimization** - Refinance debt within single child:
    ```solidity
    steps = [
-       RebalanceStep(childA, Internal, encode(flashLoan, refinanceCommands))
+       RebalanceStep(childA, Internal, encode(
+           USDC_TOKEN, 1000e6,      // providedToken/Amount: flash loan for refinancing
+           USDC_TOKEN, 1000e6,      // expectedToken/Amount: expect flash loan back
+           refinanceCommands
+       ))
    ]
    ```
 

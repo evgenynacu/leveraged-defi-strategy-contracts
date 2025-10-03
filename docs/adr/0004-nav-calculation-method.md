@@ -7,7 +7,7 @@ Accepted
 2024-09-26
 
 ## Context
-Oracle spot prices for assets like sUSDe can be stale/biased. NAV must reflect real economic PnL, not fragile spot quotes.
+Oracle spot prices for assets like sUSDe can be stale/biased. NAV must reflect real economic PnL, not fragile spot quotes. Child strategies provide direct NAV contributions without internal share accounting.
 
 ## Requirements
 - **PnL-based NAV:** prefer protocol-native measures over external oracles (e.g. PT token price is identified using Pendle Oracle and current implied yield).
@@ -48,6 +48,7 @@ Where:
 ### Entry and Exit Rules
 - **Entry:** shares minted from **deltaNAV** only (`shares = deltaNAV / pricePerShare`)
   - `NAV_before`: excludes queued deposit assets (they haven't entered strategies yet)
+  - Child strategies contribute their `totalAssets()` (no internal shares)
   - `NAV_after`: includes newly deployed assets in child strategies
   - `deltaNAV` captures actual value creation from deploying capital
   - First deposit: `pricePerShare = 1e18` (1:1 ratio)
