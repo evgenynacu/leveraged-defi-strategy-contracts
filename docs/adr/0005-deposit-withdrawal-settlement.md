@@ -55,13 +55,14 @@ We need fair batching without oracle reliance, supporting multiple children and 
        NAV_after += childNavAfter
    ```
    **Gas optimization:** Each child's `totalAssets()` called exactly 2 times (pre/post), no duplicates
-5. Add parent's cash buffer to NAV:
+5. Account for parent's cash buffer (excluding current pending deposits):
    ```
-   // NAV_before: only assets already in strategies (no pending deposits)
-   // NAV_after: assets in strategies + remaining cash buffer
-   NAV_after += parentRemainingCash  // cash kept for liquidity after allocations
+   // NAV_before: strategies + cash that existed before this epoch started
+   // NAV_after: strategies + cash that remains after allocations this epoch
+   NAV_before += parentCashBefore;      // cash carried over from previous epochs
+   NAV_after += parentRemainingCash;    // cash kept for liquidity after allocations
    ```
-   **Important:** Pending deposits are NOT included in NAV_before because they haven't entered strategies yet.
+   **Important:** Assets supplied by users in the current epoch are excluded from `NAV_before` until deployed into strategies.
 6. Calculate minted shares:
    ```
    deltaNAV = NAV_after - NAV_before
