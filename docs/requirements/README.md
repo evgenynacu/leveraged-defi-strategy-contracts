@@ -45,6 +45,16 @@ Performance targets and optimization guidelines:
 - **PR-006**: Off-Chain Performance
 - **PR-007**: Network Performance
 - **PR-008**: Monitoring and Metrics
+- **PR-009**: Strategy Performance Requirements
+
+### [Operational Requirements](operational-requirements.md)
+Backend keeper operations and automation:
+- **OR-001**: Backend Keeper Responsibilities
+- **OR-002**: Deposit and Withdrawal Processing
+- **OR-003**: Strategy Rebalancing Management
+- **OR-004**: Risk Management and Loss Protection
+- **OR-005**: Profit-Taking Automation
+- **OR-006**: Monitoring and Alerting
 
 ## Requirement Traceability
 
