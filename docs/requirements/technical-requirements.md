@@ -156,3 +156,31 @@ enum OperationType {
 - Safe re-runs on transaction failure
 - State should be consistent after failed transactions
 - Clear separation between pending and processed states
+
+## TR-008: Strategy Implementation Requirements
+
+### TR-008.1: Leveraged Yield-Token Strategy Architecture
+- Child strategies must implement leveraged yield-token acquisition pattern:
+  ```
+  1. Receive base token (USDC) + flash loan liquidity
+  2. Swap total amount to yield-bearing token using optimal DEX routing
+  3. Deposit yield token as collateral to lending protocol
+  4. Borrow base token against collateral (creating leverage)
+  5. Repay flash loan from borrowed amount
+  ```
+- Withdrawal must implement proportional deleveraging:
+  ```
+  1. Receive flash loan for debt repayment
+  2. Repay proportional amount of debt
+  3. Withdraw proportional collateral from lending protocol
+  4. Swap yield token to base token
+  5. Repay flash loan and return remaining to parent
+  ```
+
+### TR-008.2: Protocol Integration Requirements
+- **Pendle Integration**: Must support PT token trading through PendleRouter
+- **Odos Integration**: Must support swap execution through Odos API/contracts
+- **KyberSwap Integration**: Must support MetaAggregationRouter for optimal routing
+- **Aave Integration**: Must support supply/borrow/repay/withdraw through Pool interface
+- **Morpho Integration**: Must support supply/borrow/repay/withdraw through MorphoBlue interface
+- **Euler Integration**: Must support supply/borrow/repay/withdraw through EulerV2 interfaces (EVC and EVault)

@@ -137,3 +137,42 @@ Security requirements for the leveraged DeFi strategy system covering access con
 - Formal verification for critical components
 - Bug bounty program for continuous security testing
 - Public security documentation and reports
+
+## SR-010: Strategy-Specific Security
+
+### SR-010.1: Leveraged Position Security
+- Liquidation protection through conservative collateral ratios
+- Real-time monitoring of liquidation thresholds across all supported protocols
+- Emergency deleveraging procedures when approaching dangerous LTV ratios
+- Position size limits to prevent concentration risk
+- Automatic position adjustment triggers for risk management
+
+### SR-010.2: Protocol Integration Security
+- Validation of all external protocol calls and responses
+- Slippage protection for all DEX operations (Pendle, Odos, KyberSwap)
+- Lending protocol safety checks (Aave, Morpho, Euler):
+  - Verify collateral and debt calculations
+  - Monitor protocol health and utilization rates
+  - Check for protocol pauses or emergency states
+- Fallback mechanisms when primary protocols are unavailable
+
+### SR-010.3: Cross-Strategy Risk Management
+- Portfolio-level risk assessment across all child strategies
+- Correlation risk management between different yield tokens
+- Diversification requirements to prevent over-concentration
+- Maximum exposure limits per protocol and per asset
+- Dynamic risk adjustment based on market volatility
+
+### SR-010.4: MEV and Front-running Protection
+- Protection against sandwich attacks during large swaps
+- Private mempool usage for sensitive transactions when available
+- Slippage tolerance optimization based on trade size and market conditions
+- Time-based execution windows to prevent timing attacks
+- Keeper transaction prioritization and MEV mitigation
+
+### SR-010.5: Yield Token Specific Risks
+- Validation of yield token legitimacy and smart contract security
+- Monitoring for yield token depeg events or smart contract exploits
+- Diversification across different yield token types and issuers
+- Regular assessment of underlying protocol risks (e.g., Lido, Ethena)
+- Emergency exit procedures for compromised yield tokens

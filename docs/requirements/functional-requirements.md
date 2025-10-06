@@ -89,3 +89,60 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 - Parent must explicitly specify what it expects back
 - Child strategies must approve expected tokens for parent collection
 - System must support debt obligation pattern
+
+## FR-006: Child Strategy Types
+
+### FR-006.1: Leveraged Yield-Token Strategies
+- System must support leveraged yield-bearing token strategies as primary strategy type
+- Strategies must involve purchasing yield-bearing tokens with leverage (borrowed capital)
+- Each child strategy must focus on specific yield-token/debt-token/protocol combination
+- Strategies must maximize yield through leverage while managing liquidation risk
+
+### FR-006.2: DEX and Aggregator Support
+- Child strategies must support token purchases through multiple DEX protocols:
+  - **Pendle** - for PT (Principal Token) and yield token trading
+  - **Odos** - for DEX aggregation and optimal routing
+  - **KyberSwap** - for additional liquidity and routing options
+- System must be extensible to support additional DEX protocols in the future
+- Strategies must use optimal routing to minimize slippage and maximize efficiency
+- Each strategy must handle protocol-specific interfaces and requirements
+
+### FR-006.3: Lending Protocol Support
+- Child strategies must support borrowing from multiple lending protocols:
+  - **Aave** - for established lending with high liquidity
+  - **Morpho** - for optimized lending rates and zero-fee flash loans
+  - **Euler** - for advanced risk management and capital efficiency
+- Protocol selection must be based on:
+  - Available liquidity for target assets
+  - Competitive borrowing rates
+  - Risk parameters and collateral requirements
+  - Protocol reliability and security
+
+### FR-006.4: Strategy Granularity
+- Each child strategy must handle specific combination of:
+  - **Yield Token** - specific yield-bearing asset (e.g., sUSDe, stETH, PT-tokens)
+  - **Debt Token** - specific borrowing asset (e.g., USDC, USDT, ETH)
+  - **Lending Protocol** - specific protocol and market (e.g., Aave V3 USDC market)
+- New yield token, debt token, or protocol/market requires separate child strategy
+- Parent vault manages fund transfers between child strategies for optimization
+
+### FR-006.5: Strategy Responsibilities
+- Child strategies must handle:
+  - **Capital Deployment** - executing leveraged positions using provided capital
+  - **Position Monitoring** - tracking collateral ratios, liquidation risks, yield accrual
+  - **Risk Management** - maintaining safe collateral ratios within strategy parameters
+  - **Yield Optimization** - maximizing returns while staying within risk limits
+- Keeper (off-chain service) must handle:
+  - **Market Monitoring** - watching for optimal entry/exit opportunities
+  - **Risk Monitoring** - alerting on approaching liquidation thresholds
+  - **Rebalancing Triggers** - identifying when cross-strategy moves are beneficial
+  - **Performance Tracking** - measuring strategy effectiveness and ROI
+
+### FR-006.6: Strategy Lifecycle Management
+- System must support adding new child strategies without disrupting existing ones
+- Parent vault must handle migration of capital between strategies when:
+  - New strategy offers better risk/reward profile
+  - Existing strategy approaches capacity limits
+  - Market conditions favor different token/protocol combinations
+  - Protocol upgrades or changes require strategy updates
+- Migration must preserve user positions and maintain fair value distribution
