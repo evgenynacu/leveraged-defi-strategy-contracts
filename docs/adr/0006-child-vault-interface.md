@@ -17,6 +17,12 @@ Child strategies are single-owner execution engines with no internal share accou
 - **Minimal interface:** only essential functions for strategy execution.
 - **No internal shares:** parent owns all assets directly, no share minting in child.
 
+**Related Requirements:**
+- [FR-005: Multi-Token Support](../requirements/functional-requirements.md#fr-005-multi-token-support)
+- [TR-003: Child Strategy Interface](../requirements/technical-requirements.md#tr-003-child-strategy-interface)
+- [SR-001: Access Control](../requirements/security-requirements.md#sr-001-access-control)
+- [SR-009: Monitoring and Auditing](../requirements/security-requirements.md#sr-009-monitoring-and-auditing)
+
 ## Decision
 
 ### Solidity Interface
@@ -268,3 +274,13 @@ function withdraw(
 - [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Defines parent-child relationship and multi-child allocation
 - [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - totalAssets contributes to parent NAV
 - [ADR-0002: Command-Based Execution](0002-command-based-execution.md) - Data parameter may contain command sequences
+
+## Requirements Traceability
+- **FR-005.1**: Flexible Token Operations - Multi-token support for deposit/withdraw, direct position transfers
+- **FR-005.2**: Provided/Expected Token Pattern - Parent explicitly specifies provided/expected tokens
+- **TR-003.1**: Core Interface Requirements - Single caller, sync operations, multi-token support implemented
+- **TR-003.2**: Function Signatures - IChildStrategy interface with deposit/withdraw/rebalance/totalAssets
+- **TR-003.3**: Proportional Exit Logic - Fixed proportional withdrawal logic implemented
+- **SR-001.1**: Role-Based Permissions - Single-owner constraint enforced (only parent can call)
+- **SR-009.1**: Event Logging - Comprehensive logging for money flow tracking and financial reconstruction
+- **SR-009.2**: Audit Requirements - Event logging enables complete audit trail and PnL calculation

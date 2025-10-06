@@ -16,6 +16,11 @@ Oracle spot prices for assets like sUSDe can be stale/biased. NAV must reflect r
 - **Deterministic snapshots:** `NAV_before` and `NAV_after` within one tx.
 - **Auditability:** expose component breakdowns via events/views.
 
+**Related Requirements:**
+- [TR-002: NAV Calculation](../requirements/technical-requirements.md#tr-002-nav-calculation)
+- [SR-005: Oracle Security](../requirements/security-requirements.md#sr-005-oracle-security)
+- [PR-005: Oracle Performance](../requirements/performance-requirements.md#pr-005-oracle-performance)
+
 ## Decision
 
 ### NAV Formula
@@ -61,3 +66,12 @@ Where:
 ## Related ADRs
 - [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Uses NAV for deltaNAV-based share minting
 - [ADR-0005: Deposit & Withdrawal Settlement](0005-deposit-withdrawal-settlement.md) - Applies NAV snapshots in epoch processing
+
+## Requirements Traceability
+- **TR-002.1**: Component-Based NAV - Implemented through cash + collateral - debt + rewards formula
+- **TR-002.2**: Oracle Integration - PT tokens use Pendle Oracle, yield-bearing assets use external oracles
+- **TR-002.3**: Entry and Exit Rules - deltaNAV-based entry, proportional asset exit implemented
+- **SR-005.1**: Oracle Manipulation Protection - Protocol-native measures prioritized over external oracles
+- **SR-005.2**: Price Validation - Oracle price bounds and deviation checks implemented
+- **PR-005.1**: Price Feed Efficiency - Fast and reliable price feed updates from multiple sources
+- **PR-005.2**: NAV Calculation Performance - Real-time NAV calculation with efficient aggregation

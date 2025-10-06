@@ -20,6 +20,11 @@ Requirements:
 
 Traditional approaches lack the flexibility needed for dynamic strategy execution and require contract upgrades for new protocols.
 
+**Related Requirements:**
+- [FR-003: Command-Based Execution](../requirements/functional-requirements.md#fr-003-command-based-execution)
+- [TR-004: Command System Implementation](../requirements/technical-requirements.md#tr-004-command-system-implementation)
+- [SR-004: Command System Security](../requirements/security-requirements.md#sr-004-command-system-security)
+
 ## Decision
 Implement a **Command-Based Execution System** using a simple operation enum and command structure.
 
@@ -119,6 +124,15 @@ After executing any command sequence:
 ## Related ADRs
 - [ADR-0006: Child Vault Interface](0006-child-vault-interface.md) - Data parameter in deposit/withdraw may contain command sequences
 - [ADR-0001: Upgradeable Contract Architecture](0001-upgradeable-contract-architecture.md) - Command system reduces need for upgrades
+
+## Requirements Traceability
+- **FR-003.1**: Command System - Implemented through Op enum and Cmd struct with composable operations
+- **FR-003.2**: Safety and Validation - Each command has safety guarantees, no Transfer operations allowed
+- **TR-004.1**: Data Structures - Op enum and Cmd struct provide flexible command structure
+- **TR-004.2**: Security Constraints - Transfer restrictions and validation implemented
+- **TR-004.3**: Invariants - All invariants enforced after command sequence execution
+- **SR-004.1**: Command Restrictions - NO Transfer operations, assets remain in vault
+- **SR-004.2**: Command Execution Safety - Atomic execution with clear safety guarantees
 
 ## References
 - [Morpho Flash Loans](https://docs.morpho.org/morpho/developers/flash-loans)

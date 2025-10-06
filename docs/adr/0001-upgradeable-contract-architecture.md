@@ -14,6 +14,10 @@ The leveraged DeFi strategy needs flexibility for:
 
 Traditional immutable contracts require complete redeployment and user migration for any changes.
 
+**Related Requirements:**
+- [TR-001: Contract Architecture](../requirements/technical-requirements.md#tr-001-contract-architecture)
+- [SR-006: Upgrade Security](../requirements/security-requirements.md#sr-006-upgrade-security)
+
 ## Decision
 Use **OpenZeppelin upgradeable contracts** with a transparent proxy pattern.
 
@@ -46,3 +50,9 @@ Initial deployment may use a simple multisig, with migration to full on-chain go
 
 ## Related ADRs
 - [ADR-0002: Command-Based Execution](0002-command-based-execution.md) - Command system enables flexibility without frequent upgrades
+
+## Requirements Traceability
+- **TR-001.1**: Upgradeable Components - Implemented through OpenZeppelin transparent proxy pattern
+- **TR-001.2**: Governance Structure - Flexible governance evolution supported
+- **SR-006.1**: Upgrade Constraints - Storage layout preservation and proxy immutability enforced
+- **SR-006.2**: Upgrade Validation - Governance and timelock mechanisms provide validation framework

@@ -18,6 +18,13 @@ We need fair batching without oracle reliance, supporting multiple children and 
 - **Partial fills:** if some child is illiquid, deliver what’s realizable and queue the rest.
 - **Idempotency:** safe re-runs on tx failure.
 
+**Related Requirements:**
+- [FR-001: User Deposits and Withdrawals](../requirements/functional-requirements.md#fr-001-user-deposits-and-withdrawals)
+- [FR-004: Flash Loan Management](../requirements/functional-requirements.md#fr-004-flash-loan-management)
+- [TR-006: Flash Loan Implementation](../requirements/technical-requirements.md#tr-006-flash-loan-implementation)
+- [TR-007: Error Handling and Atomicity](../requirements/technical-requirements.md#tr-007-error-handling-and-atomicity)
+- [SR-003: Flash Loan Security](../requirements/security-requirements.md#sr-003-flash-loan-security)
+
 ## Decision
 
 ### Deposit Flow
@@ -493,3 +500,16 @@ See ADR-0003 for detailed unified rebalance design.
 ## Related ADRs
 - [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Defines overall epoch-based architecture and multi-child allocation
 - [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - NAV snapshots used in processEpoch
+
+## Requirements Traceability
+- **FR-001.1**: Deposit Flow - Implemented through batch deposits with epoch processing and slippage protection
+- **FR-001.2**: Withdrawal Flow - Implemented through proportional withdrawals with partial fill support
+- **FR-001.3**: Fair Entry/Exit - deltaNAV-based entry and proportional asset distribution
+- **FR-004.1**: Flash Loan Coordination - Parent vault manages all flash loans for operation coordination
+- **FR-004.2**: Operation Types - DEPOSIT, WITHDRAW, REBALANCE operations supported
+- **TR-006.1**: Flash Loan Provider - Morpho as primary provider with zero fees
+- **TR-006.2**: Operation Types - OperationType enum implemented for callback handling
+- **TR-007.1**: Atomic Execution - All operations atomic with no partial state changes
+- **TR-007.2**: Idempotency - Safe re-runs and consistent state after failures
+- **SR-003.1**: Flash Loan Constraints - Repayment within same transaction enforced
+- **SR-003.2**: Flash Loan Validation - Data validation and provider authorization

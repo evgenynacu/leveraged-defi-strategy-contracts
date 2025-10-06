@@ -17,6 +17,13 @@ We need a safe, fair, and simple vault system with multi-strategy composition. O
 - **Simplicity:** child strategies have one owner (parent) and sync I/O.
 - **Determinism:** explicit rounding policy and idempotent processing.
 
+**Related Requirements:**
+- [FR-001: User Deposits and Withdrawals](../requirements/functional-requirements.md#fr-001-user-deposits-and-withdrawals)
+- [FR-002: Multi-Strategy Support](../requirements/functional-requirements.md#fr-002-multi-strategy-support)
+- [TR-005: Rebalancing Architecture](../requirements/technical-requirements.md#tr-005-rebalancing-architecture)
+- [SR-001: Access Control](../requirements/security-requirements.md#sr-001-access-control)
+- [SR-002: Invariant Protection](../requirements/security-requirements.md#sr-002-invariant-protection)
+
 ## Decision
 - **Parent/child design:** Parent holds users' funds and owns N child strategies.
 - **Epochs:** Users submit deposits/withdrawals into queues; `processEpoch()` executes atomically.
@@ -205,3 +212,14 @@ function _executeRebalance(RebalanceStep[] memory steps) internal {
 - [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - Defines how NAV is calculated for entry/exit
 - [ADR-0005: Deposit & Withdrawal Settlement](0005-deposit-withdrawal-settlement.md) - Details epoch processing mechanics
 - [ADR-0006: Child Vault Interface](0006-child-vault-interface.md) - Specifies child vault contract interface
+
+## Requirements Traceability
+- **FR-001.3**: Fair Entry/Exit - Implemented through deltaNAV-based entry and proportional exit
+- **FR-002.1**: Child Strategy Management - Parent/child design with single owner pattern
+- **FR-002.2**: Asset Allocation - Target weights and keeper-driven allocation strategy
+- **FR-002.3**: Rebalancing - Unified rebalancing architecture with step-based approach
+- **TR-005.1**: Unified Rebalancing System - RebalanceOp enum and RebalanceStep struct implemented
+- **TR-005.2**: Rebalancing Function - Single rebalance() function with NAV and weight invariant checks
+- **SR-001.1**: Role-Based Permissions - Parent-child ownership and keeper authorization
+- **SR-002.1**: NAV Preservation - NAV invariant checks during rebalancing
+- **SR-002.2**: Asset Protection - Proportional exit logic ensures fair asset distribution
