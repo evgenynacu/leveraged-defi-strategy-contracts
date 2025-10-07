@@ -3,19 +3,6 @@ import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { MockERC20, PriceOracle, MockPendleOracle, MockAggregatorV3 } from "../typechain-types";
 
-// Test contract that exposes SwapHelper internal functions
-const SwapHelperTestArtifact = {
-  abi: [
-    "function swap(uint8 router, address tokenIn, uint256 amountIn, address tokenOut, uint256 minAmountOut, bytes calldata swapData) external returns (uint256)",
-    "function setSwapRouter(uint8 router, address routerAddress) external",
-    "function priceOracle() external view returns (address)",
-    "function swapRouters(uint8) external view returns (address)",
-    "event SwapExecuted(uint8 indexed router, address indexed tokenIn, uint256 amountIn, address indexed tokenOut, uint256 amountOut, uint256 minAmountOut, uint256 expectedAmountOut)",
-    "event SwapRouterUpdated(uint8 indexed router, address indexed oldAddress, address indexed newAddress)"
-  ],
-  bytecode: "0x" // Will be deployed using factory pattern in tests
-};
-
 describe("SwapHelper", function () {
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
