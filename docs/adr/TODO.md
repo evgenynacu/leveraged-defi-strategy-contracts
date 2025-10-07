@@ -58,7 +58,7 @@ This document tracks pending improvements and clarifications for the ADR documen
 - Who can trigger emergency actions?
 - Timelock requirements
 
-**Location:** Create ADR-0007: "Emergency Procedures and Circuit Breakers"
+**Location:** Create ADR-0008: "Emergency Procedures and Circuit Breakers" (ADR-0007 used for Reentrancy Protection)
 
 ---
 
@@ -87,6 +87,7 @@ This document tracks pending improvements and clarifications for the ADR documen
 - [x] Fix first deposit decimals - shares normalized to 1e18 scale (ADR-0006)
 - [x] Fix NAV accumulation logic - pending deposits exclusion (ADR-0005)
 - [x] Add multi-currency debt support documentation (ADR-0006)
+- [x] Document reentrancy protection strategy (ADR-0007) - Entry-point protection only
 
 ---
 
@@ -110,4 +111,4 @@ This document tracks pending improvements and clarifications for the ADR documen
 - Multi-currency debt support was added to optimize borrow rates (1-2% difference → 5-10% equity returns with leverage)
 - Unified rebalance architecture successfully consolidates all rebalancing operations
 
-**Last Updated:** 2025-10-02
+**Last Updated:** 2025-01-10

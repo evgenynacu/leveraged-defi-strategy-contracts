@@ -13,9 +13,9 @@ contract MockAggregatorV3 is AggregatorV3Interface {
     uint256 private _updatedAt;
     uint80 private _roundId;
 
-    constructor(uint8 decimals_, int256 initialPrice) {
+    constructor(uint8 decimals_) {
         _decimals = decimals_;
-        _price = initialPrice;
+        _price = 0; // Will be set via updateAnswer
         _updatedAt = block.timestamp;
         _roundId = 1;
     }
@@ -61,6 +61,12 @@ contract MockAggregatorV3 is AggregatorV3Interface {
     }
 
     // Test helper functions
+    function updateAnswer(int256 newPrice) external {
+        _price = newPrice;
+        _updatedAt = block.timestamp;
+        _roundId++;
+    }
+
     function setPrice(int256 newPrice) external {
         _price = newPrice;
         _updatedAt = block.timestamp;

@@ -12,8 +12,10 @@ describe("PriceOracle", function () {
 
 		// Deploy mock Chainlink price feed
 		const MockAggregatorFactory = await hre.ethers.getContractFactory("MockAggregatorV3");
-		const usdcPriceFeed = await MockAggregatorFactory.deploy(8, 100000000); // $1.00
-		const usdtPriceFeed = await MockAggregatorFactory.deploy(8, 99800000);  // $0.998
+		const usdcPriceFeed = await MockAggregatorFactory.deploy(8);
+		await usdcPriceFeed.updateAnswer(100000000); // $1.00
+		const usdtPriceFeed = await MockAggregatorFactory.deploy(8);
+		await usdtPriceFeed.updateAnswer(99800000);  // $0.998
 
 		// Deploy mock Pendle oracle
 		const MockPendleOracleFactory = await hre.ethers.getContractFactory("MockPendleOracle");
@@ -279,7 +281,8 @@ describe("PriceOracle", function () {
 
 			// Deploy stale price feed (updated more than 24 hours ago)
 			const MockAggregatorFactory = await hre.ethers.getContractFactory("MockAggregatorV3");
-			const stalePriceFeed = await MockAggregatorFactory.deploy(8, 100000000);
+			const stalePriceFeed = await MockAggregatorFactory.deploy(8);
+			await stalePriceFeed.updateAnswer(100000000);
 
 			// Set timestamp to 25 hours ago
 			await stalePriceFeed.setUpdatedAt(Math.floor(Date.now() / 1000) - (25 * 3600));
@@ -298,7 +301,8 @@ describe("PriceOracle", function () {
 
 			// Deploy price feed with zero price
 			const MockAggregatorFactory = await hre.ethers.getContractFactory("MockAggregatorV3");
-			const invalidPriceFeed = await MockAggregatorFactory.deploy(8, 0);
+			const invalidPriceFeed = await MockAggregatorFactory.deploy(8);
+			await invalidPriceFeed.updateAnswer(0);
 
 			await oracle.addPriceFeed(await usdc.getAddress(), await invalidPriceFeed.getAddress());
 
@@ -378,7 +382,8 @@ describe("PriceOracle", function () {
 
 			// Update USDC price to $1.05
 			const MockAggregatorFactory = await hre.ethers.getContractFactory("MockAggregatorV3");
-			const newUsdcPriceFeed = await MockAggregatorFactory.deploy(8, 105000000);
+			const newUsdcPriceFeed = await MockAggregatorFactory.deploy(8);
+		await newUsdcPriceFeed.updateAnswer(105000000);
 			await oracle.addPriceFeed(await usdc.getAddress(), await newUsdcPriceFeed.getAddress());
 
 			const amount = hre.ethers.parseUnits("1000", 6); // 1000 PT tokens (6 decimals)
