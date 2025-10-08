@@ -58,7 +58,7 @@ This document tracks pending improvements and clarifications for the ADR documen
 - Who can trigger emergency actions?
 - Timelock requirements
 
-**Location:** Create ADR-0008: "Emergency Procedures and Circuit Breakers" (ADR-0007 used for Reentrancy Protection)
+**Location:** Create ADR-0009: "Emergency Procedures and Circuit Breakers" (ADR-0007 used for Reentrancy Protection, ADR-0008 used for LeveragedStrategy Architecture)
 
 ---
 
@@ -88,6 +88,9 @@ This document tracks pending improvements and clarifications for the ADR documen
 - [x] Fix NAV accumulation logic - pending deposits exclusion (ADR-0005)
 - [x] Add multi-currency debt support documentation (ADR-0006)
 - [x] Document reentrancy protection strategy (ADR-0007) - Entry-point protection only
+- [x] Document LeveragedStrategy inheritance-based architecture (ADR-0008) - 2025-01-10
+- [x] Update command-based execution documentation (ADR-0002) - Inheritance vs plugin pattern
+- [x] Update implementation roadmap - Reflect inheritance architecture
 
 ---
 
@@ -110,5 +113,10 @@ This document tracks pending improvements and clarifications for the ADR documen
 - All critical and high severity issues from initial architecture audit have been resolved
 - Multi-currency debt support was added to optimize borrow rates (1-2% difference → 5-10% equity returns with leverage)
 - Unified rebalance architecture successfully consolidates all rebalancing operations
+- **2025-01-10:** Moved to inheritance-based architecture for child strategies
+  - Rejected plugin-based delegatecall pattern in favor of LeveragedStrategy base class
+  - Simpler architecture with 5 command types (SUPPLY, WITHDRAW, BORROW, REPAY, SWAP)
+  - Better type safety and gas efficiency than plugins
+  - Protocol implementations: Aave, Morpho, Euler via inheritance
 
 **Last Updated:** 2025-01-10

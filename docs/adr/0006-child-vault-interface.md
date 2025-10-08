@@ -1,13 +1,16 @@
 # ADR-0006: Child Strategy Interface
 
 ## Status
-Accepted
+Accepted (Updated 2025-01-10)
 
 ## Date
-2024-10-01
+2024-10-01 (Last Updated: 2025-01-10)
 
 ## Context
 Child strategies are single-owner execution engines with no internal share accounting. Parent vault controls all asset movements and debt obligations.
+
+**Implementation Note (Updated 2025-01-10):**
+The IChildStrategy interface is implemented by LeveragedStrategy base contract, which uses inheritance-based architecture for multi-protocol support. See [ADR-0008: LeveragedStrategy Architecture](0008-leveraged-strategy-architecture.md) for implementation details.
 
 ## Requirements
 - **Single caller:** only parent can call operations.
@@ -271,9 +274,10 @@ function withdraw(
 - Flexibility for deposits and rebalancing with proper invariant checks
 
 ## Related ADRs
+- [ADR-0008: LeveragedStrategy Architecture](0008-leveraged-strategy-architecture.md) - Inheritance-based implementation of IChildStrategy
 - [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Defines parent-child relationship and multi-child allocation
 - [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - totalAssets contributes to parent NAV
-- [ADR-0002: Command-Based Execution](0002-command-based-execution.md) - Data parameter may contain command sequences
+- [ADR-0002: Command-Based Execution](0002-command-based-execution.md) - Data parameter contains command sequences
 
 ## Requirements Traceability
 - **FR-005.1**: Flexible Token Operations - Multi-token support for deposit/withdraw, direct position transfers
