@@ -51,6 +51,15 @@ contract MockSwapHelper is SwapHelper, ReentrancyGuard {
     }
 
     /**
+     * @notice Update the price oracle address
+     * @dev Public implementation for testing (no access control in mock)
+     * @param newOracle New price oracle address
+     */
+    function setOracle(address newOracle) external override {
+        _setPriceOracle(newOracle);
+    }
+
+    /**
      * @notice Helper function to receive tokens for testing
      */
     function depositTokens(address token, uint256 amount) external {

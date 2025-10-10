@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IPriceOracle.sol";
+import "../interfaces/IOracleConsumer.sol";
 
 /**
  * @title SwapHelper
@@ -29,7 +30,7 @@ import "../interfaces/IPriceOracle.sol";
  * - ADR-0006: Child Strategy Interface
  * - ADR-0007: Reentrancy Protection Strategy
  */
-abstract contract SwapHelper {
+abstract contract SwapHelper is IOracleConsumer {
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
@@ -52,7 +53,7 @@ abstract contract SwapHelper {
     // ============ State Variables ============
 
     /// @notice Price oracle for slippage validation
-    IPriceOracle public immutable priceOracle;
+    IPriceOracle public priceOracle;
 
     /// @notice Swap router addresses
     mapping(SwapRouter => address) public swapRouters;
@@ -92,6 +93,8 @@ abstract contract SwapHelper {
         address indexed oldAddress,
         address indexed newAddress
     );
+
+    // Note: OracleUpdated event is inherited from IOracleConsumer
 
     // ============ Errors ============
 
@@ -148,7 +151,7 @@ abstract contract SwapHelper {
         address tokenOut,
         uint256 minAmountOut,
         uint256 maxOracleSlippageBps,
-        bytes calldata swapData
+        bytes memory swapData
     ) internal returns (uint256 amountOut) {
         // Input validation
         if (tokenIn == address(0) || tokenOut == address(0)) revert InvalidToken();
@@ -210,7 +213,7 @@ abstract contract SwapHelper {
         uint256 amountIn,
         address tokenOut,
         address routerAddress,
-        bytes calldata swapData
+        bytes memory swapData
     ) private returns (uint256 amountOut) {
         // Get balance before swap
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
@@ -256,6 +259,35 @@ abstract contract SwapHelper {
         swapRouters[router] = routerAddress;
 
         emit SwapRouterUpdated(router, oldAddress, routerAddress);
+    }
+
+    /**
+     * @notice Get current price oracle address
+     * @return oracle Address of the current price oracle
+     */
+    function oracle() external view override returns (IPriceOracle) {
+        return priceOracle;
+    }
+
+    /**
+     * @notice Update the price oracle address
+     * @dev Must be implemented by child contracts with proper access control
+     * @param newOracle New price oracle address
+     */
+    function setOracle(address newOracle) external virtual override;
+
+    /**
+     * @notice Set price oracle address (internal helper)
+     * @dev Called by child contracts to update oracle when new version is deployed
+     * @param newOracle New price oracle address
+     */
+    function _setPriceOracle(address newOracle) internal {
+        if (newOracle == address(0)) revert ZeroAddress();
+
+        address oldOracle = address(priceOracle);
+        priceOracle = IPriceOracle(newOracle);
+
+        emit OracleUpdated(oldOracle, newOracle);
     }
 
     /**

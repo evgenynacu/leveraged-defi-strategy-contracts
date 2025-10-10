@@ -6,6 +6,9 @@ Accepted (Updated 2025-01-10)
 ## Date
 2024-10-01 (Last Updated: 2025-01-10)
 
+## Change Log
+- **2025-01-10**: Simplified to single `flashLoanToken` parameter (removed separate `providedToken`/`expectedToken`)
+
 ## Context
 Child strategies are single-owner execution engines with no internal share accounting. Parent vault controls all asset movements and debt obligations.
 
@@ -37,17 +40,15 @@ interface IChildStrategy {
     /// @notice Deploy assets into strategy
     /// @param depositToken Token being deposited (PT, USDC, ETH, etc.)
     /// @param depositAmount Amount of deposit token
-    /// @param providedToken Token that parent provides additionally (address(0) if none)
-    /// @param providedAmount Amount of provided token
-    /// @param expectedToken Token that parent expects back (address(0) if none)
-    /// @param expectedAmount Amount of expected token
+    /// @param flashLoanToken Token used for flash loans (address(0) if none)
+    /// @param providedAmount Amount of flash loan token provided by parent
+    /// @param expectedAmount Amount of flash loan token parent expects back
     /// @param data Strategy-specific execution data
     function deposit(
         address depositToken,
         uint256 depositAmount,
-        address providedToken,
+        address flashLoanToken,
         uint256 providedAmount,
-        address expectedToken,
         uint256 expectedAmount,
         bytes calldata data
     ) external;
@@ -55,32 +56,28 @@ interface IChildStrategy {
     /// @notice Withdraw from strategy by percentage
     /// @param percentage Percentage to withdraw (1e18 = 100%)
     /// @param outputToken Desired output token
-    /// @param providedToken Token that parent provides (address(0) if none)
-    /// @param providedAmount Amount of provided token
-    /// @param expectedToken Token that parent expects back (address(0) if none)
-    /// @param expectedAmount Amount of expected token
+    /// @param flashLoanToken Token used for flash loans (address(0) if none)
+    /// @param providedAmount Amount of flash loan token provided by parent
+    /// @param expectedAmount Amount of flash loan token parent expects back
     /// @param data Strategy-specific execution data
     /// @return actualWithdrawn Amount actually withdrawn in outputToken
     function withdraw(
         uint256 percentage,
         address outputToken,
-        address providedToken,
+        address flashLoanToken,
         uint256 providedAmount,
-        address expectedToken,
         uint256 expectedAmount,
         bytes calldata data
     ) external returns (uint256 actualWithdrawn);
 
     /// @notice Rebalance strategy
-    /// @param providedToken Token that parent provides (address(0) if none)
-    /// @param providedAmount Amount of provided token
-    /// @param expectedToken Token that parent expects back (address(0) if none)
-    /// @param expectedAmount Amount of expected token
+    /// @param flashLoanToken Token used for flash loans (address(0) if none)
+    /// @param providedAmount Amount of flash loan token provided by parent
+    /// @param expectedAmount Amount of flash loan token parent expects back
     /// @param data Strategy-specific execution data
     function rebalance(
-        address providedToken,
+        address flashLoanToken,
         uint256 providedAmount,
-        address expectedToken,
         uint256 expectedAmount,
         bytes calldata data
     ) external;
@@ -92,47 +89,108 @@ interface IChildStrategy {
 }
 ```
 
-### Provided/Expected Token Pattern
+### Flash Loan Token Pattern with netFlow Tracking
 
-**Core Principle:** Parent explicitly specifies what it provides to child strategy and what it expects back.
+**Core Principle:** Single flash loan token per parent vault transaction enables efficient netFlow tracking.
+
+**Key Changes (2025-01-10):**
+- Consolidated `providedToken` and `expectedToken` into single `flashLoanToken` parameter
+- Enables parent vault to track flash loan debt with simple `netFlow` counter
+- Parent validates `netFlow == 0` at transaction end to ensure flash loan is fully repaid
+
+**netFlow Tracking in Parent Vault:**
+```solidity
+function userWithdraw(uint256 amount) external nonReentrant {
+    address flashLoanToken = USDC;
+    uint256 netFlow = 0;
+
+    // Get flash loan from Aave/Balancer
+    uint256 flashLoanAmount = 1000e6;
+
+    // Call Child Strategy A
+    childA.withdraw(
+        percentage: 50%,
+        outputToken: PT_TOKEN,
+        flashLoanToken: USDC,
+        providedAmount: 1000e6,    // Parent provides
+        expectedAmount: 0,          // Child doesn't return yet
+        data: commands
+    );
+    netFlow += 1000e6;  // Debt increased
+
+    // Call Child Strategy B
+    childB.rebalance(
+        flashLoanToken: USDC,
+        providedAmount: 0,
+        expectedAmount: 1000e6,     // Child must return
+        data: commands
+    );
+    netFlow -= 1000e6;  // Debt decreased
+
+    // Validate flash loan fully repaid
+    require(netFlow == 0, "Flash loan not fully repaid");
+}
+```
+
+**Benefits:**
+1. **Single Token Per Transaction**: Only one flash loan token per parent vault call
+2. **Flexible Multi-Child Operations**: Flash loan can flow through multiple children
+3. **Automatic Validation**: `netFlow == 0` ensures complete repayment
+4. **Prevents Theft**: Keeper cannot steal flash loan tokens
+
+**Security Properties:**
+- ✅ Keeper Cannot Steal Flash Loan: Parent validates `netFlow == 0`
+- ✅ Idle Token Protection: Child validates idle balances during operations
+- ✅ Single Token Enforcement: Only one `flashLoanToken` per transaction
+- ✅ No Intermediate Theft: Even if one child doesn't return, `netFlow != 0` will revert
 
 **Deposit Operation Examples:**
 
 ```solidity
-// Scenario 1: Standard leverage - parent provides extra liquidity, expects it back
+// Scenario 1: Standard leverage with flash loan
 ptChildStrategy.deposit(
     USDC_TOKEN, 1000e6,      // depositToken/Amount: main deposit
-    USDC_TOKEN, 7000e6,      // providedToken/Amount: leverage liquidity
-    USDC_TOKEN, 7000e6,      // expectedToken/Amount: expect leverage back
+    USDC_TOKEN, 7000e6,      // flashLoanToken, providedAmount: flash loan liquidity
+    7000e6,                  // expectedAmount: must repay flash loan
     leverageData
 );
 
-// Scenario 2: Reverse leverage - parent expects debt from strategy
+// Scenario 2: Deposit without flash loan
 ptChildStrategy.deposit(
     PT_TOKEN, 1500,          // depositToken/Amount: deposit PT directly
-    address(0), 0,           // providedToken/Amount: nothing provided
-    USDT_TOKEN, 2000e6,      // expectedToken/Amount: expect USDT debt
-    reverseData
+    address(0), 0, 0,        // No flash loan
+    depositData
+);
+
+// Scenario 3: Multi-child rebalance - intermediate child (receives flash loan)
+childA.deposit(
+    PT_TOKEN, 1000,
+    USDC_TOKEN, 5000e6,      // flashLoanToken, providedAmount: receive flash loan
+    0,                       // expectedAmount: don't return yet
+    commands
+);
+
+// Scenario 4: Multi-child rebalance - final child (returns flash loan)
+childB.deposit(
+    USDC_TOKEN, 500e6,
+    USDC_TOKEN, 0,           // flashLoanToken, providedAmount: already received
+    5000e6,                  // expectedAmount: must return flash loan
+    commands
 );
 
 // Child strategy execution:
 function deposit(
     address depositToken, uint256 depositAmount,
-    address providedToken, uint256 providedAmount,
-    address expectedToken, uint256 expectedAmount,
+    address flashLoanToken, uint256 providedAmount, uint256 expectedAmount,
     bytes calldata data
 ) external {
-    // Handle provided liquidity if any
-    if (providedToken != address(0)) {
-        // Use provided liquidity for leverage
-    }
-
-    // Execute strategy with depositToken
-    // ...
+    // Execute strategy with depositToken and flash loan liquidity
+    Command[] memory commands = abi.decode(data, (Command[]));
+    _executeCommands(commands);
 
     // Approve expected tokens for parent collection
-    if (expectedToken != address(0)) {
-        IERC20(expectedToken).approve(parent, expectedAmount);
+    if (flashLoanToken != address(0) && expectedAmount > 0) {
+        IERC20(flashLoanToken).approve(parent, expectedAmount);
     }
 }
 ```
@@ -140,50 +198,84 @@ function deposit(
 **Withdrawal Operation Examples:**
 
 ```solidity
-// Scenario 1: Standard deleverage - parent provides liquidity, expects it back
+// Scenario 1: Standard deleverage with flash loan
 uint256 withdrawn = child.withdraw(
     1e17,                    // percentage: 10%
     USDC_TOKEN,              // outputToken: receive USDC
-    USDT_TOKEN, 200e6,       // providedToken/Amount: deleverage liquidity
-    USDT_TOKEN, 200e6,       // expectedToken/Amount: expect it back
+    USDT_TOKEN,              // flashLoanToken
+    200e6,                   // providedAmount: flash loan for debt repayment
+    200e6,                   // expectedAmount: must repay flash loan
     standardParams
 );
 
-// Scenario 2: Position transfer - parent provides liquidity, keeps it (expects collateral)
-uint256 ptAmount = morphoChild.withdraw(
+// Scenario 2: Withdraw without flash loan
+uint256 amount = child.withdraw(
+    5e17,                    // percentage: 50%
+    USDC_TOKEN,              // outputToken
+    address(0), 0, 0,        // No flash loan
+    simpleParams
+);
+
+// Scenario 3: Multi-child rebalance - first child returns PT (receives flash loan)
+uint256 ptAmount = childA.withdraw(
     1e18,                    // percentage: 100%
     PT_TOKEN,                // outputToken: receive PT directly
-    USDT_TOKEN, 2000e6,      // providedToken/Amount: deleverage liquidity
-    address(0), 0,           // expectedToken/Amount: parent keeps liquidity
+    USDC_TOKEN,              // flashLoanToken
+    2000e6,                  // providedAmount: flash loan for debt repayment
+    0,                       // expectedAmount: don't return yet (intermediate step)
     transferParams
+);
+
+// Scenario 4: Multi-child rebalance - second child uses PT (returns flash loan)
+childB.deposit(
+    PT_TOKEN, ptAmount,      // Use PT from previous withdraw
+    USDC_TOKEN,              // flashLoanToken (same as step 3)
+    0,                       // providedAmount: already provided in step 3
+    2000e6,                  // expectedAmount: must return flash loan now
+    depositParams
 );
 ```
 
 ### Position Transfer Flow
 
-**Key Innovation:** No special `transferPosition()` function needed - use existing deposit/withdraw with different tokens.
+**Key Innovation:** No special `transferPosition()` function needed - use existing deposit/withdraw with flash loan.
 
 **Example: Transfer PT position from Morpho strategy to Aave strategy**
 
 ```solidity
-// Step 1: Withdraw PT from Morpho child (position transfer mode)
-uint256 ptAmount = morphoChild.withdraw(
-    1e18,                    // percentage: 100%
-    PT_TOKEN,                // outputToken: receive PT directly
-    USDT_TOKEN, 2000e6,      // providedToken/Amount: flash loan for deleverage
-    address(0), 0,           // expectedToken/Amount: parent keeps liquidity
-    morphoParams
-);
+function transferPosition() external nonReentrant {
+    address flashLoanToken = USDT;
+    uint256 netFlow = 0;
 
-// Step 2: Deposit PT into Aave child (use existing PT, borrow for flash loan repay)
-aaveChild.deposit(
-    PT_TOKEN, ptAmount,      // depositToken/Amount: deposit received PT
-    address(0), 0,           // providedToken/Amount: no additional liquidity
-    USDT_TOKEN, 2000e6,      // expectedToken/Amount: strategy borrows and returns
-    aaveCommands
-);
+    // Get flash loan
+    uint256 flashLoanAmount = 2000e6;
 
-// Net result: PT position moved from Morpho to Aave, flash loan repaid
+    // Step 1: Withdraw PT from Morpho child
+    uint256 ptAmount = morphoChild.withdraw(
+        1e18,                    // percentage: 100%
+        PT_TOKEN,                // outputToken: receive PT directly
+        flashLoanToken,          // flashLoanToken: USDT
+        2000e6,                  // providedAmount: flash loan for debt repayment
+        0,                       // expectedAmount: don't return yet
+        morphoParams
+    );
+    netFlow += 2000e6;  // Debt increased
+
+    // Step 2: Deposit PT into Aave child
+    aaveChild.deposit(
+        PT_TOKEN, ptAmount,      // depositToken/Amount: deposit received PT
+        flashLoanToken,          // flashLoanToken: USDT (same token)
+        0,                       // providedAmount: already provided in step 1
+        2000e6,                  // expectedAmount: strategy borrows and returns
+        aaveCommands
+    );
+    netFlow -= 2000e6;  // Debt decreased
+
+    // Validate flash loan repaid
+    require(netFlow == 0, "Flash loan not fully repaid");
+
+    // Net result: PT position moved from Morpho to Aave, flash loan repaid
+}
 ```
 
 ### Proportional Exit Logic
@@ -194,9 +286,8 @@ aaveChild.deposit(
 function withdraw(
     uint256 percentage,
     address outputToken,
-    address providedToken,
+    address flashLoanToken,
     uint256 providedAmount,
-    address expectedToken,
     uint256 expectedAmount,
     bytes calldata data
 ) external onlyParent returns (uint256 actualWithdrawn) {
@@ -208,22 +299,31 @@ function withdraw(
     uint256 collateralToWithdraw = (currentCollateral * percentage) / 1e18;
     uint256 debtToRepay = (currentDebt * percentage) / 1e18;
 
-    // Execute proportional unwind using provided liquidity
+    // Execute proportional unwind using flash loan liquidity
     actualWithdrawn = _executeWithdrawal(
         collateralToWithdraw,
         debtToRepay,
         outputToken,
-        providedToken,
+        flashLoanToken,
         providedAmount,
         data
     );
 
-    // Approve parent to collect withdrawn assets
-    IERC20(outputToken).approve(parent, actualWithdrawn);
-
-    // Approve expected token if parent expects something back
-    if (expectedToken != address(0)) {
-        IERC20(expectedToken).approve(parent, expectedAmount);
+    // Approve parent to collect withdrawn assets and flash loan repayment
+    if (outputToken == flashLoanToken && flashLoanToken != address(0)) {
+        // Same token: approve sum of both amounts
+        uint256 totalAmount = actualWithdrawn + expectedAmount;
+        if (totalAmount > 0) {
+            IERC20(outputToken).approve(parent, totalAmount);
+        }
+    } else {
+        // Different tokens: approve separately
+        if (actualWithdrawn > 0) {
+            IERC20(outputToken).approve(parent, actualWithdrawn);
+        }
+        if (flashLoanToken != address(0) && expectedAmount > 0) {
+            IERC20(flashLoanToken).approve(parent, expectedAmount);
+        }
     }
 
     return actualWithdrawn;
