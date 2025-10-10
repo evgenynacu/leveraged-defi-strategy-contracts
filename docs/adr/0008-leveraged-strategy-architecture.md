@@ -1,13 +1,13 @@
 # ADR-0008: LeveragedStrategy Architecture (Inheritance-Based)
 
 ## Status
-Accepted (Implementation Pending)
+Accepted
 
 ## Date
 2025-01-10
 
 ## Implementation Status
-🔴 **Not Implemented** - This ADR documents the architectural decision. Implementation tracked in [IMPLEMENTATION_ROADMAP.md](../../IMPLEMENTATION_ROADMAP.md) Phase 2.
+🟡 **Partially Implemented** – Core `LeveragedStrategy` base contract and `IChildStrategy` interface shipped (Jan 2025). Protocol-specific children (Aave/Morpho/Euler) remain outstanding per [IMPLEMENTATION_ROADMAP.md](../../IMPLEMENTATION_ROADMAP.md) Phase 2.
 
 ## Context
 
@@ -50,15 +50,16 @@ LeveragedStrategy (abstract) extends SwapHelper
 └── EulerLeveragedStrategy
 ```
 
-### LeveragedStrategy Base Class (To Be Implemented)
+### LeveragedStrategy Base Class (Implemented)
 
-**Planned Responsibilities:**
-- **IChildStrategy Implementation**: deposit(), withdraw(), rebalance(), totalAssets()
-- **Command Execution Framework**: Parse and execute command sequences from `data` parameter
-- **Access Control**: onlyParent modifier to ensure only parent vault can call operations
-- **SwapHelper Integration**: Inherit swap functionality for token exchanges
-- **Multi-token Support**: Handle any token for deposits/withdrawals (not just base asset)
-- **Approval Management**: Approve expected tokens for parent collection after operations
+**Current Responsibilities:**
+- **IChildStrategy Implementation**: `deposit()`, `withdraw()`, `rebalance()`, `totalAssets()`
+- **Command Execution Framework**: `_executeCommands` walks typed command list encoded in `data`
+- **Access Control**: `onlyParent` modifier restricts entry points
+- **SwapHelper Integration**: Inherits oracle-checked swaps and router management
+- **Multi-token Support**: `_trackedTokens()` derives base/collateral/debt set with override hook for rewards
+- **Approval Management**: Uses `forceApprove` to stage withdrawn assets / flash-loan repayments for the parent
+- **Proportional Exit Guardrails**: `_executeProportionalWithdraw` + `_validateIdleBalances` enforce snapshot-based proportionality and prevent idle balance leakage even with keeper-provided swaps
 
 **Command Types (5 total):**
 ```
@@ -82,8 +83,8 @@ Child implementations must provide:
 - `_withdraw(asset, amount)` - Withdraw collateral from protocol
 - `_borrow(asset, amount)` - Borrow from protocol
 - `_repay(asset, amount)` - Repay debt to protocol
-- `_getCollateralValue()` - Query collateral value in base asset terms
-- `_getDebtValue()` - Query debt value in base asset terms
+- `_getCollateralAsset()` / `_getCollateralAmount()` - Identify collateral token + balance
+- `_getDebtAsset()` / `_getDebtAmount()` - Identify debt token + balance
 
 ### Protocol-Specific Implementations
 
@@ -119,7 +120,7 @@ Child implementations must provide:
 3. Child executes command sequence:
    - REPAY: Debt using provided liquidity
    - WITHDRAW: PT collateral
-   - SWAP: PT → USDC
+   - SWAP: PT → USDC (optional keeper-supplied commands validated against tracked token set)
 4. Child approves withdrawn tokens + flash loan repayment for parent
 5. Parent collects and repays flash loan
 
@@ -161,16 +162,17 @@ Child implementations must provide:
 
 ## Security Considerations
 
-### Command Validation (Planned)
-- Commands will be executed only by parent vault (onlyParent modifier)
-- No Transfer command type - assets remain in strategy
-- All swaps protected by oracle-based slippage checks (SwapHelper - ✅ implemented)
+### Command Validation (Implemented)
+- Commands executed only by parent vault (`onlyParent` modifier)
+- No Transfer command type – assets stay on strategy; only allowances granted back to parent
+- `_validateKeeperCommands` restricts keeper data during withdrawals to SWAP-only operations touching tracked tokens
+- All swaps protected by oracle-based slippage checks (SwapHelper – ✅ implemented)
 - Command execution is atomic (all or nothing)
 
 ### Reentrancy Protection (Planned - ADR-0007)
 - No reentrancy guard in LeveragedStrategy (per ADR-0007)
 - **Parent vault will have** nonReentrant on deposit/withdraw/rebalance entry points
-- onlyParent access control will provide protection at child level
+- `onlyParent` access control provides protection at child level pending vault implementation
 
 **⚠️ Note:** ParentVault not yet implemented. This describes the planned security architecture.
 

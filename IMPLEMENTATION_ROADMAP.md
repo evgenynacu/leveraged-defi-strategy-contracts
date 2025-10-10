@@ -66,40 +66,41 @@
 
 ## Phase 2: Child Strategies (Inheritance-Based) 🟡
 
-### 2.1 Base Leveraged Strategy ⚪
+### 2.1 Base Leveraged Strategy ✅
 **Dependencies:** 1.2 (SwapHelper completed)
 
 #### 2.1.1 IChildStrategy Interface
-- [ ] Create `IChildStrategy.sol`
-  - [ ] `deposit()` function signature (multi-token support)
-  - [ ] `withdraw()` function signature (proportional exit)
-  - [ ] `rebalance()` function signature (internal optimization)
-  - [ ] `totalAssets()` view function
-  - [ ] Events (Deposited, Withdrawn, Rebalanced)
-- [ ] Comprehensive NatSpec documentation
+- [x] Create `IChildStrategy.sol`
+  - [x] `deposit()` function signature (multi-token support)
+  - [x] `withdraw()` function signature (proportional exit)
+  - [x] `rebalance()` function signature (internal optimization)
+  - [x] `totalAssets()` view function
+  - [x] Events (Deposited, Withdrawn, Rebalanced)
+- [x] Comprehensive NatSpec documentation
 
 **Related ADRs:** ADR-0006, ADR-0008
 
 #### 2.1.2 LeveragedStrategy Abstract Contract
-- [ ] Create `LeveragedStrategy.sol`
-  - [ ] Inherit from SwapHelper and IChildStrategy
-  - [ ] Command execution framework (_executeCommands)
-  - [ ] CommandType enum (SUPPLY, WITHDRAW, BORROW, REPAY, SWAP)
-  - [ ] Command struct (cmdType, data)
-  - [ ] `onlyParent` access control
-  - [ ] Oracle integration (inherited from SwapHelper)
-  - [ ] Abstract methods for protocol-specific operations
-    - [ ] `_supply()` - supply collateral
-    - [ ] `_withdraw()` - withdraw collateral
-    - [ ] `_borrow()` - borrow assets
-    - [ ] `_repay()` - repay debt
-    - [ ] `_getCollateralValue()` - get collateral in base asset terms
-    - [ ] `_getDebtValue()` - get debt in base asset terms
-  - [ ] Event emission helpers
-- [ ] Tests for base functionality
-  - [ ] Command parsing
-  - [ ] Access control (onlyParent)
-  - [ ] Approval logic for parent
+- [x] Create `LeveragedStrategy.sol`
+  - [x] Inherit from SwapHelper and IChildStrategy
+  - [x] Command execution framework (`_executeCommands`)
+  - [x] CommandType enum (SUPPLY, WITHDRAW, BORROW, REPAY, SWAP)
+  - [x] Command struct (cmdType, data)
+  - [x] `onlyParent` access control
+  - [x] Oracle integration (inherited from SwapHelper)
+  - [x] Abstract methods for protocol-specific operations
+    - [x] `_supply()` - supply collateral
+    - [x] `_withdraw()` - withdraw collateral
+    - [x] `_borrow()` - borrow assets
+    - [x] `_repay()` - repay debt
+    - [x] `_getCollateralAsset()` / `_getCollateralAmount()`
+    - [x] `_getDebtAsset()` / `_getDebtAmount()`
+  - [x] Idle balance snapshot & proportional-withdraw safeguards
+  - [x] Event emission helpers
+- [x] Tests for base functionality
+  - [x] Command parsing
+  - [x] Access control (`onlyParent`)
+  - [x] Approval and idle balance validation
 
 **Related ADRs:** ADR-0008, ADR-0002, ADR-0007
 
@@ -113,8 +114,8 @@
   - [ ] Implement `_withdraw()` - Aave Pool.withdraw()
   - [ ] Implement `_borrow()` - Aave Pool.borrow() with variable rate
   - [ ] Implement `_repay()` - Aave Pool.repay()
-  - [ ] Implement `_getCollateralValue()` - query Aave user data
-  - [ ] Implement `_getDebtValue()` - query Aave user data
+  - [ ] Implement `_getCollateralAsset()` / `_getCollateralAmount()` - query Aave user data
+  - [ ] Implement `_getDebtAsset()` / `_getDebtAmount()` - query Aave user data
   - [ ] Multi-currency debt support (USDC/USDT/DAI)
 - [ ] Strategy-specific state
   - [ ] Aave Pool address
@@ -148,8 +149,8 @@
   - [ ] Implement `_withdraw()` - Morpho.withdrawCollateral()
   - [ ] Implement `_borrow()` - Morpho.borrow()
   - [ ] Implement `_repay()` - Morpho.repay()
-  - [ ] Implement `_getCollateralValue()` - query Morpho position
-  - [ ] Implement `_getDebtValue()` - query Morpho position
+  - [ ] Implement `_getCollateralAsset()` / `_getCollateralAmount()` - query Morpho position
+  - [ ] Implement `_getDebtAsset()` / `_getDebtAmount()` - query Morpho position
   - [ ] Market params handling
 - [ ] Strategy-specific state
   - [ ] Morpho contract address
@@ -170,7 +171,7 @@
 #### 2.4.1 Euler Strategy Implementation
 - [ ] Create `EulerLeveragedStrategy.sol`
   - [ ] Inherit LeveragedStrategy
-  - [ ] Implement all abstract methods for Euler V2
+  - [ ] Implement all abstract methods for Euler V2 (supply/withdraw/borrow/repay + collateral/debt asset accessors)
   - [ ] Euler-specific parameter handling
 - [ ] Testing suite
 
