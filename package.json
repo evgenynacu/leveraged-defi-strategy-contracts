@@ -15,7 +15,9 @@
     "hardhat": "^2.26.1"
   },
   "dependencies": {
+    "@aave/core-v3": "^1.19.3",
     "@chainlink/contracts": "^1.4.0",
+    "@morpho-org/morpho-blue": "^1.0.0",
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0"
   }

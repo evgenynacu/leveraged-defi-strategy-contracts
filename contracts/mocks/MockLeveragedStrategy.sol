@@ -106,16 +106,13 @@ contract MockLeveragedStrategy is LeveragedStrategy {
         return baseAsset;
     }
 
-    function _getCollateralAmount() internal view override returns (uint256) {
-        return collateral[baseAsset];
-    }
-
     function _getDebtAsset() internal view override returns (address) {
         return baseAsset;
     }
 
-    function _getDebtAmount() internal view override returns (uint256) {
-        return debt[baseAsset];
+    function _getPositionAmounts() internal view override returns (uint256 collateralAmount, uint256 debtAmount) {
+        collateralAmount = collateral[baseAsset];
+        debtAmount = debt[baseAsset];
     }
 
     function _trackedTokens() internal view override returns (address[] memory tokens) {

@@ -273,14 +273,13 @@ abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
             }
         }
 
-        // 2. Add protocol collateral (stored in lending protocol, not on this contract)
-        uint256 collateralAmount = _getCollateralAmount();
+        // 2. Add protocol collateral and subtract debt (single external call)
+        (uint256 collateralAmount, uint256 debtAmount) = _getPositionAmounts();
+
         if (collateralAmount > 0) {
             totalValueUsd += priceOracle.getUsdValue(collateralAsset, collateralAmount);
         }
 
-        // 3. Subtract protocol debt
-        uint256 debtAmount = _getDebtAmount();
         if (debtAmount > 0) {
             uint256 debtUsd = priceOracle.getUsdValue(debtAsset, debtAmount);
             if (totalValueUsd <= debtUsd) {
@@ -432,15 +431,22 @@ abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
 
     /**
      * @notice Execute protocol-level withdraw operations
+     * @dev Calculates safe withdrawal amounts considering health factor and LTV.
+     *      Strategy may need to repay more debt than proportional to safely withdraw collateral.
      */
     function _executeProtocolWithdraw(uint256 percentage) private {
         address collateralAsset = _getCollateralAsset();
-        uint256 collateralAmount = _getCollateralAmount();
         address debtAsset = _getDebtAsset();
-        uint256 debtAmount = _getDebtAmount();
 
-        uint256 repayAmount = (debtAmount * percentage) / PERCENTAGE_DENOMINATOR;
-        uint256 withdrawAmount = (collateralAmount * percentage) / PERCENTAGE_DENOMINATOR;
+        // Get both amounts in a single external call
+        (uint256 collateralAmount, uint256 debtAmount) = _getPositionAmounts();
+
+        // Calculate safe withdrawal amounts (may adjust debt repayment upward)
+        (uint256 repayAmount, uint256 withdrawAmount) = _calculateSafeWithdrawAmounts(
+            collateralAmount,
+            debtAmount,
+            percentage
+        );
 
         if (repayAmount > 0) {
             _repay(debtAsset, repayAmount);
@@ -667,13 +673,6 @@ abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
     function _getCollateralAsset() internal view virtual returns (address);
 
     /**
-     * @notice Get collateral amount from lending protocol
-     * @dev Returns amount in native token decimals (NOT converted to base asset)
-     * @return Amount of collateral in native token decimals
-     */
-    function _getCollateralAmount() internal view virtual returns (uint256);
-
-    /**
      * @notice Get debt asset address
      * @dev Returns the single debt asset used in the strategy
      * @return Debt asset address
@@ -681,9 +680,40 @@ abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
     function _getDebtAsset() internal view virtual returns (address);
 
     /**
-     * @notice Get debt amount from lending protocol
-     * @dev Returns amount in native token decimals (NOT converted to base asset)
-     * @return Amount of debt in native token decimals
+     * @notice Get position amounts from lending protocol (collateral and debt)
+     * @dev Returns amounts in native token decimals (NOT converted to base asset).
+     *      This method should make a single external call to fetch both values
+     *      to save gas compared to calling _getCollateralAmount() and _getDebtAmount() separately.
+     * @return collateralAmount Amount of collateral in native token decimals
+     * @return debtAmount Amount of debt in native token decimals
      */
-    function _getDebtAmount() internal view virtual returns (uint256);
+    function _getPositionAmounts() internal view virtual returns (uint256 collateralAmount, uint256 debtAmount);
+
+    /**
+     * @notice Calculate safe withdrawal amounts considering protocol constraints
+     * @dev Default implementation adds small buffer to debt repayment:
+     *      - Debt: (totalDebt * (percentage + 1)) / DENOMINATOR
+     *      - Collateral: (totalCollateral * percentage) / DENOMINATOR
+     *
+     *      The +1 adds 1/1e18 extra to debt repayment to maintain safe health factor.
+     *      Child strategies can override for protocol-specific logic.
+     *
+     * @param collateralAmount Total collateral in protocol
+     * @param debtAmount Total debt in protocol
+     * @param percentage Percentage to withdraw (1e18 = 100%)
+     * @return repayAmount Amount of debt to repay (slightly > proportional for safety)
+     * @return withdrawAmount Amount of collateral to withdraw
+     */
+    function _calculateSafeWithdrawAmounts(
+        uint256 collateralAmount,
+        uint256 debtAmount,
+        uint256 percentage
+    ) internal view virtual returns (uint256 repayAmount, uint256 withdrawAmount) {
+        // Collateral: simple proportional withdrawal
+        withdrawAmount = (collateralAmount * percentage) / PERCENTAGE_DENOMINATOR;
+
+        // Debt: add +1 to percentage to repay slightly more (1/1e18 extra)
+        // This ensures health factor remains safe after withdrawal
+        repayAmount = (debtAmount * (percentage + 1)) / PERCENTAGE_DENOMINATOR;
+    }
 }
