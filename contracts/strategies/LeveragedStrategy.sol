@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import "./SwapHelper.sol";
 import "../interfaces/IChildStrategy.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -25,13 +26,18 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * This contract does NOT include reentrancy guards. Parent vault MUST have
  * nonReentrant modifier on deposit/withdraw/rebalance entry points (see ADR-0007).
  *
+ * IMPORTANT: Upgradeability
+ * This contract is designed to be deployed behind an upgradeable proxy.
+ * Uses initializer pattern instead of constructor (see TR-001.1).
+ *
  * Related ADRs:
  * - ADR-0008: LeveragedStrategy Architecture
  * - ADR-0006: Child Strategy Interface
  * - ADR-0002: Command-Based Execution
  * - ADR-0007: Reentrancy Protection Strategy
+ * - ADR-0001: Upgradeable Contract Architecture
  */
-abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
+abstract contract LeveragedStrategy is Initializable, SwapHelper, IChildStrategy {
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
@@ -72,13 +78,13 @@ abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
         bytes data;
     }
 
-    // ============ Immutable State ============
+    // ============ Storage Variables ============
 
     /// @notice Parent vault address (only caller allowed)
-    address public immutable override parent;
+    address public override parent;
 
     /// @notice Base asset for the strategy (e.g., USDC)
-    address public immutable baseAsset;
+    address public baseAsset;
 
     // ============ Modifiers ============
 
@@ -90,21 +96,27 @@ abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
         _;
     }
 
-    // ============ Constructor ============
+    // ============ Initializer ============
 
     /**
      * @notice Initialize strategy with parent vault and oracle
+     * @dev This function replaces the constructor for upgradeable contracts.
+     *      Must be called immediately after proxy deployment.
+     *      Can only be called once due to initializer modifier.
+     *
      * @param _parent Parent vault address
      * @param _baseAsset Base asset address (e.g., USDC)
      * @param _priceOracle Price oracle address
      */
-    constructor(
+    function __LeveragedStrategy_init(
         address _parent,
         address _baseAsset,
         address _priceOracle
-    ) SwapHelper(_priceOracle) {
+    ) internal onlyInitializing {
         if (_parent == address(0)) revert InvalidToken();
         if (_baseAsset == address(0)) revert InvalidToken();
+
+        __SwapHelper_init(_priceOracle);
 
         parent = _parent;
         baseAsset = _baseAsset;
@@ -153,9 +165,19 @@ abstract contract LeveragedStrategy is SwapHelper, IChildStrategy {
     /**
      * @notice Withdraw from strategy by percentage
      * @inheritdoc IChildStrategy
-     * @dev Strategy calculates proportional amounts to withdraw/repay based on percentage
-     *      and current protocol state. Keeper only provides liquidity and swap execution,
-     *      but cannot manipulate withdrawal amounts.
+     * @dev Withdrawal Model:
+     *      - Parent (offchain keeper) selects which child strategies to withdraw from
+     *      - Parent validates total withdrawal matches expected % of total NAV (with tolerance)
+     *      - This strategy validates its own proportional withdrawal
+     *
+     *      Protection Mechanism:
+     *      - Strategy calculates proportional amounts to withdraw/repay based on percentage
+     *      - Keeper can only provide liquidity and swap commands (SWAP only)
+     *      - Protocol operations (SUPPLY/WITHDRAW/BORROW/REPAY) executed by strategy itself
+     *      - Idle token balances validated to remain proportional after withdrawal
+     *
+     *      This two-level validation (parent validates total, child validates proportional)
+     *      enables gas-efficient selective withdrawals while maintaining fairness.
      */
     function withdraw(
         uint256 percentage,

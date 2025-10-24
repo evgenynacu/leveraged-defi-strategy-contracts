@@ -52,8 +52,9 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 ## FR-003: Command-Based Execution
 
 ### FR-003.1: Command System
-- System must support flexible command-based execution for complex strategies
-- Commands must include: FlashLoan, LendingDeposit, LendingWithdraw, LendingBorrow, LendingRepay, Swap
+- Child strategies must support flexible command-based execution for complex operations
+- Child strategy commands must include: SUPPLY, WITHDRAW, BORROW, REPAY, SWAP
+- Flash loan operations are managed by parent vault, NOT by child strategy commands
 - Transfer operations must NOT be allowed in commands - only vault logic can transfer assets
 - Commands must be composable for complex strategies
 
@@ -84,11 +85,13 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 - System must support optimal flash loan currency selection
 - System must minimize slippage through reduced token swaps
 
-### FR-005.2: Provided/Expected Token Pattern
-- Parent must explicitly specify what it provides to child strategy
-- Parent must explicitly specify what it expects back
-- Child strategies must approve expected tokens for parent collection
-- System must support debt obligation pattern
+### FR-005.2: Flash Loan Token Pattern
+- Parent must use single flash loan token per transaction for netFlow tracking
+- Parent must specify providedAmount (what it gives to child) and expectedAmount (what child returns)
+- Both amounts use the same flashLoanToken (unified token per transaction)
+- Child strategies must approve expectedAmount of flashLoanToken for parent collection
+- System must validate netFlow == 0 at transaction end (flash loan fully repaid)
+- Pattern enables multi-child flash loan coordination (child A receives, child B returns)
 
 ## FR-006: Child Strategy Types
 

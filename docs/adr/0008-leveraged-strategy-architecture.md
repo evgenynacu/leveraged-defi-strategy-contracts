@@ -41,7 +41,9 @@ Implement **inheritance-based architecture** with abstract base class and protoc
 ### Architecture Hierarchy
 
 ```
-SwapHelper (abstract)
+Initializable (OpenZeppelin)
+    ↓
+SwapHelper (abstract) extends Initializable
     ↓
 LeveragedStrategy (abstract) extends SwapHelper
     ↓
@@ -49,6 +51,8 @@ LeveragedStrategy (abstract) extends SwapHelper
 ├── MorphoLeveragedStrategy
 └── EulerLeveragedStrategy
 ```
+
+**Note:** All contracts use initializer pattern (not constructors) for upgradeability via transparent proxy (see ADR-0001).
 
 ### LeveragedStrategy Base Class (Implemented)
 
@@ -92,15 +96,34 @@ Child implementations must provide:
 - Implements abstract methods using Aave V3 Pool interface
 - Uses variable interest rate mode (interestRateMode = 2)
 - Handles multi-currency debt (USDC/USDT/DAI)
+- Must implement public `initialize()` function that calls `__LeveragedStrategy_init()`
 
 **MorphoLeveragedStrategy:**
 - Implements abstract methods using Morpho Blue interface
 - Manages market parameters for different markets
 - Handles Morpho-specific return values (shares vs assets)
+- Must implement public `initialize()` function that calls `__LeveragedStrategy_init()`
 
 **EulerLeveragedStrategy:**
 - Implements abstract methods using Euler V2 interface
 - Handles Euler-specific vault architecture
+- Must implement public `initialize()` function that calls `__LeveragedStrategy_init()`
+
+**Initialization Pattern:**
+```solidity
+contract AaveLeveragedStrategy is LeveragedStrategy {
+    function initialize(
+        address _parent,
+        address _baseAsset,
+        address _priceOracle,
+        address _aavePool
+    ) external initializer {
+        __LeveragedStrategy_init(_parent, _baseAsset, _priceOracle);
+        // Protocol-specific initialization
+        aavePool = _aavePool;
+    }
+}
+```
 
 ### Command Execution Flow
 
@@ -182,12 +205,14 @@ Child implementations must provide:
 - Interest accrual handling varies by protocol
 
 ## Related ADRs
+- [ADR-0001: Upgradeable Contract Architecture](0001-upgradeable-contract-architecture.md) - Initializer pattern for upgradeability
 - [ADR-0006: Child Strategy Interface](0006-child-vault-interface.md) - IChildStrategy implementation requirements
 - [ADR-0002: Command-Based Execution](0002-command-based-execution.md) - Command structure and validation
 - [ADR-0007: Reentrancy Protection Strategy](0007-reentrancy-protection-strategy.md) - Security pattern for entry points
 - [ADR-0003: Vault Architecture](0003-vault-architecture.md) - Parent-child relationship and rebalancing
 
 ## Requirements Traceability
+- **TR-001.1**: Upgradeable Components - LeveragedStrategy uses initializer pattern for proxy compatibility
 - **FR-002.1**: Multi-Protocol Support - Inheritance enables Aave, Morpho, Euler implementations
 - **FR-003.1**: Command System - CommandType enum and Command struct with typed operations
 - **TR-003.1**: Child Interface - LeveragedStrategy implements IChildStrategy

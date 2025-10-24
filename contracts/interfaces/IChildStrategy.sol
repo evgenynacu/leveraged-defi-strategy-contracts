@@ -113,6 +113,12 @@ interface IChildStrategy {
      *      Parent may provide flash loan liquidity for debt repayment.
      *      Strategy returns assets in outputToken and repays flash loan.
      *
+     * Withdrawal Model:
+     * - Parent (offchain keeper/owner) determines which strategies to withdraw from
+     * - Parent validates total withdrawal amount matches requested percentage of total NAV (with tolerance)
+     * - Each child strategy validates its own proportional withdrawal
+     * - This approach enables gas-efficient selective withdrawals instead of touching all strategies
+     *
      * Flash Loan Pattern (same as deposit):
      * - Parent tracks netFlow for flashLoanToken
      * - netFlow updated by providedAmount and expectedAmount
@@ -123,7 +129,7 @@ interface IChildStrategy {
      * - outputToken must NOT be address(0) - strategy must know what token to return
      * - flashLoanToken must be in _trackedTokens() if providedAmount or expectedAmount > 0
      *
-     * @param percentage Percentage to withdraw (1e18 = 100%)
+     * @param percentage Percentage to withdraw from THIS strategy's NAV (1e18 = 100%)
      * @param outputToken Desired output token (MUST NOT be address(0))
      * @param flashLoanToken Token used for flash loan (address(0) if none)
      * @param providedAmount Amount provided by parent (flash loan for debt repayment)

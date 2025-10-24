@@ -25,12 +25,49 @@ Use **OpenZeppelin upgradeable contracts** with a transparent proxy pattern.
 - **Proxy Contract**: Immutable, holds state, delegates calls
 - **Implementation Contract**: Upgradeable logic
 - **Storage Layout Management**: Strict storage slot preservation
+- **Initialization Pattern**: Use initializer functions instead of constructors
 
 ### What is Upgradeable
 - ✅ Parent vault logic
 - ✅ Child vault logic (each child is upgradeable independently)
 - ❌ Proxy contracts (immutable)
 - ❌ Storage layout (append-only, cannot reorder or remove variables)
+
+### Implementation Requirements
+
+**Initializer Pattern:**
+- Implementation contracts MUST use initializer functions instead of constructors
+- Use `@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol`
+- Initializer functions MUST use `onlyInitializing` modifier
+- Follow naming convention: `__ContractName_init()` for internal initializers
+
+**Storage Variables:**
+- MUST NOT use `immutable` keyword (incompatible with proxy pattern)
+- Use regular storage variables instead
+- All state variables stored in proxy contract storage
+
+**Example Pattern:**
+```solidity
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+abstract contract LeveragedStrategy is Initializable, SwapHelper {
+    // ❌ DON'T: immutable variables
+    // address public immutable parent;
+
+    // ✅ DO: storage variables
+    address public parent;
+
+    // ❌ DON'T: constructor
+    // constructor(address _parent) { ... }
+
+    // ✅ DO: initializer function
+    function __LeveragedStrategy_init(address _parent)
+        internal onlyInitializing
+    {
+        parent = _parent;
+    }
+}
+```
 
 ### Governance
 Upgrade authority and governance mechanisms (timelock, multisig, DAO voting) are intentionally **not specified** in this ADR. These will be implemented using OpenZeppelin Governor and TimelockController, allowing flexibility to evolve governance over time without changing the core proxy architecture.

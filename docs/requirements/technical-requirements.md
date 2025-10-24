@@ -10,6 +10,9 @@ Technical requirements for the leveraged DeFi strategy system including architec
 - Child vault logic must be upgradeable independently
 - Proxy contracts must be immutable
 - Storage layout must support append-only changes (cannot reorder or remove variables)
+- Implementation contracts must use initializer pattern instead of constructors
+- Implementation contracts must NOT use immutable variables (incompatible with proxy pattern)
+- Initialization must use `onlyInitializing` modifier to prevent re-initialization
 
 ### TR-001.2: Governance Structure
 - System must support flexible governance evolution
@@ -53,28 +56,34 @@ Technical requirements for the leveraged DeFi strategy system including architec
 interface IChildStrategy {
     function deposit(
         address depositToken, uint256 depositAmount,
-        address providedToken, uint256 providedAmount,
-        address expectedToken, uint256 expectedAmount,
+        address flashLoanToken, uint256 providedAmount, uint256 expectedAmount,
         bytes calldata data
     ) external;
 
     function withdraw(
         uint256 percentage,
         address outputToken,
-        address providedToken, uint256 providedAmount,
-        address expectedToken, uint256 expectedAmount,
+        address flashLoanToken, uint256 providedAmount, uint256 expectedAmount,
         bytes calldata data
     ) external returns (uint256 actualWithdrawn);
 
     function rebalance(
-        address providedToken, uint256 providedAmount,
-        address expectedToken, uint256 expectedAmount,
+        address flashLoanToken, uint256 providedAmount, uint256 expectedAmount,
         bytes calldata data
     ) external;
 
     function totalAssets() external view returns (uint256);
 }
 ```
+
+**Flash Loan Token Pattern:**
+- Single `flashLoanToken` per transaction (instead of separate provided/expected tokens)
+- `providedAmount`: what parent gives to child
+- `expectedAmount`: what child must return to parent
+- Both amounts use the same `flashLoanToken`
+- Parent tracks `netFlow` across all child operations
+- Transaction validates `netFlow == 0` at end (flash loan fully repaid)
+- Enables multi-child coordination (child A receives, child B returns)
 
 ### TR-003.3: Proportional Exit Logic
 - Withdrawal operations must use fixed proportional logic
@@ -84,14 +93,26 @@ interface IChildStrategy {
 
 ## TR-004: Command System Implementation
 
-### TR-004.1: Data Structures
+### TR-004.1: Child Strategy Command Types
+Child strategies use command-based execution for protocol operations. Flash loans are managed by parent vault, NOT by child commands.
+
 ```solidity
-enum Op { FlashLoan, LendingDeposit, LendingWithdraw, LendingBorrow, LendingRepay, Swap }
-struct Cmd {
-    Op op;
-    bytes data; // ABI-encoded arguments for this operation
+// Child strategy commands (matches LeveragedStrategy.CommandType)
+enum CommandType {
+    SUPPLY,    // Supply collateral to lending protocol
+    WITHDRAW,  // Withdraw collateral from lending protocol
+    BORROW,    // Borrow asset from lending protocol
+    REPAY,     // Repay debt to lending protocol
+    SWAP       // Swap tokens via DEX
+}
+
+struct Command {
+    CommandType cmdType;
+    bytes data; // ABI-encoded arguments for this command
 }
 ```
+
+**Note:** Flash loan operations are handled by parent vault at transaction level, not through child strategy commands.
 
 ### TR-004.2: Security Constraints
 - Transfer operation is NOT allowed in commands

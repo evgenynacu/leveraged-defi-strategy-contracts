@@ -65,22 +65,21 @@ We need fair batching without oracle reliance, supporting multiple children and 
        // Transfer deposit assets to child
        IERC20(depositToken).transfer(address(child), depositAmount);
 
-       // Transfer provided liquidity if needed
-       if (providedToken != address(0)) {
-           IERC20(providedToken).transfer(address(child), providedAmount);
+       // Transfer flash loan liquidity if needed
+       if (flashLoanToken != address(0)) {
+           IERC20(flashLoanToken).transfer(address(child), providedAmount);
        }
 
-       // Execute deposit with provided/expected pattern
+       // Execute deposit with flash loan pattern
        child.deposit(
            depositToken, depositAmount,
-           providedToken, providedAmount,
-           expectedToken, expectedAmount,
+           flashLoanToken, providedAmount, expectedAmount,
            commands
        );
 
-       // Collect expected tokens from child
-       if (expectedToken != address(0)) {
-           IERC20(expectedToken).transferFrom(address(child), address(this), expectedAmount);
+       // Collect flash loan repayment from child
+       if (flashLoanToken != address(0) && expectedAmount > 0) {
+           IERC20(flashLoanToken).transferFrom(address(child), address(this), expectedAmount);
        }
    ```
 5. Calculate NAV after all child operations:
@@ -128,44 +127,67 @@ We need fair batching without oracle reliance, supporting multiple children and 
 
 **Epoch Processing (`processWithdrawals()` called by keeper):**
 1. Calculate total shares to withdraw from queue
-2. Compute fraction: `f = totalWithdrawalShares / totalSupply`
-3. Withdraw proportionally from each child strategy:
+2. Calculate total NAV and expected withdrawal amount:
    ```solidity
-   for each child:
+   uint256 totalNAV = getTotalNAV();  // Sum of all child strategies' NAV
+   uint256 totalShares = totalSupply();
+   uint256 expectedAssets = convertToAssets(totalWithdrawalShares);
+   uint256 expectedPercentageOfNAV = (expectedAssets * 1e18) / totalNAV;
+   ```
+3. **Selective Withdrawal (ADR-0009):** Keeper selects which strategies to withdraw from:
+   ```solidity
+   // Keeper determines optimal withdrawal allocation:
+   // - Choose strategies with high liquidity
+   // - Avoid locked or low-liquidity positions
+   // - Optimize for gas and slippage
+
+   for each selected child in withdrawalRequests:
        // Transfer provided liquidity to child if needed
-       if (providedToken != address(0)) {
-           IERC20(providedToken).transfer(address(child), providedAmount);
+       if (flashLoanToken != address(0)) {
+           IERC20(flashLoanToken).transfer(address(child), providedAmount);
        }
 
-       // Execute proportional withdrawal with provided/expected pattern
+       // Execute withdrawal from selected child
        uint256 assetsReceived = child.withdraw(
-           f,                       // percentage (1e18 = 100%)
+           percentage,              // % of THIS child's NAV (1e18 = 100%)
            outputToken,             // USDC or base asset
-           providedToken,           // flash loan token (or address(0))
+           flashLoanToken,          // flash loan token (or address(0))
            providedAmount,          // flash loan amount (or 0)
-           expectedToken,           // token parent expects back (or address(0))
-           expectedAmount,          // expected amount (or 0)
+           expectedAmount,          // flash loan repayment (or 0)
            params                   // execution parameters
        );
 
        // Collect withdrawn assets
        IERC20(outputToken).transferFrom(address(child), address(this), assetsReceived);
 
-       // Collect expected tokens if any
-       if (expectedToken != address(0)) {
-           IERC20(expectedToken).transferFrom(address(child), address(this), expectedAmount);
+       // Collect flash loan repayment if any
+       if (flashLoanToken != address(0) && expectedAmount > 0) {
+           IERC20(flashLoanToken).transferFrom(address(child), address(this), expectedAmount);
        }
 
        totalAssetsReceived += assetsReceived;
    ```
-4. Add parent's cash buffer: `totalAssetsReceived += cashBuffer × f`
-5. Distribute assets proportionally to withdrawal requests:
+4. **Validate Total Withdrawal (with tolerance):**
+   ```solidity
+   uint256 actualPercentageOfNAV = (totalAssetsReceived * 1e18) / totalNAV;
+   uint256 tolerance = (expectedPercentageOfNAV * withdrawalToleranceBps) / 10000;
+
+   require(
+       actualPercentageOfNAV >= expectedPercentageOfNAV - tolerance &&
+       actualPercentageOfNAV <= expectedPercentageOfNAV + tolerance,
+       "Invalid withdrawal amount"
+   );
+   ```
+   See [ADR-0009: Selective Withdrawal](0009-selective-withdrawal-validation.md) for detailed validation logic.
+
+5. Add parent's cash buffer if used: `totalAssetsReceived += cashUsed`
+6. Distribute assets proportionally to withdrawal requests:
    ```
    userAssets = (userShares / totalWithdrawalShares) × totalAssetsReceived
    ```
-6. Verify `userAssets >= minAssetsOut` for each request (revert if any fails)
-7. Burn shares from users
-8. Transfer assets to users (or queue if partially filled)
+7. Verify `userAssets >= minAssetsOut` for each request (revert if any fails)
+8. Burn shares from users
+9. Transfer assets to users (or queue if partially filled)
 
 **Partial Fills (illiquidity handling):**
 
@@ -254,16 +276,16 @@ sequenceDiagram
 
     loop For each child
         P->>C1: transfer(depositAssets)
-        opt Provide additional liquidity
-            P->>C1: transfer(providedToken, providedAmount)
+        opt Provide flash loan liquidity
+            P->>C1: transfer(flashLoanToken, providedAmount)
         end
-        P->>C1: deposit(depositToken, amount, providedToken, providedAmount, expectedToken, expectedAmount, commands)
+        P->>C1: deposit(depositToken, amount, flashLoanToken, providedAmount, expectedAmount, commands)
 
-        Note over C1: Execute strategy:<br/>- Use provided liquidity if any<br/>- Execute with deposit token<br/>- Approve expected tokens if any
+        Note over C1: Execute strategy:<br/>- Use flash loan liquidity if any<br/>- Execute with deposit token<br/>- Approve flash loan repayment if needed
 
-        opt Collect expected tokens
-            C1->>C1: approve(parent, expectedAmount)
-            P->>C1: transferFrom(expectedToken, expectedAmount)
+        opt Collect flash loan repayment
+            C1->>C1: approve(parent, flashLoanToken, expectedAmount)
+            P->>C1: transferFrom(flashLoanToken, expectedAmount)
         end
     end
 
@@ -282,37 +304,42 @@ sequenceDiagram
     participant K as Keeper
     participant P as Parent Vault
     participant FL as Flash Loan Provider
-    participant C1 as Child Vault 1
-    participant C2 as Child Vault 2
+    participant C1 as Child Vault 1 (selected)
+    participant C2 as Child Vault 2 (selected)
+    participant C3 as Child Vault 3 (skipped)
 
-    K->>P: processWithdrawals(flashLoans[], params[])
+    K->>P: processWithdrawals(WithdrawalRequest[], flashLoans[])
+
+    Note over K: Keeper selects liquid strategies<br/>(C1, C2) and skips illiquid (C3)
 
     P->>FL: flashLoan(totalAmount)
 
     FL->>P: onFlashLoan(amount, fee, data)
 
-    Note over P: Calculate fraction f
+    Note over P: Calculate expectedPercentageOfNAV<br/>= (expectedAssets * 1e18) / totalNAV
 
-    loop For each child
+    loop For each selected child in requests
         opt Provide liquidity for deleverage
-            P->>C1: transfer(providedToken, providedAmount)
+            P->>C1: transfer(flashLoanToken, providedAmount)
         end
-        P->>C1: withdraw(f, outputToken, providedToken, providedAmount, expectedToken, expectedAmount, params)
+        P->>C1: withdraw(percentage, outputToken, flashLoanToken, providedAmount, expectedAmount, params)
 
-        Note over C1: FIXED proportional logic:<br/>- Use provided liquidity if any<br/>- Withdraw f% of collateral<br/>- Swap to outputToken<br/>- Approve outputToken and expectedToken
+        Note over C1: FIXED proportional logic:<br/>- Use provided liquidity if any<br/>- Withdraw percentage% of collateral<br/>- Swap to outputToken<br/>- Approve outputToken and expectedAmount
 
         C1->>C1: approve(parent, assetsReceived)
         P->>C1: transferFrom(outputToken, assetsReceived)
 
-        opt Collect expected tokens
+        opt Collect flash loan repayment
             C1->>C1: approve(parent, expectedAmount)
-            P->>C1: transferFrom(expectedToken, expectedAmount)
+            P->>C1: transferFrom(flashLoanToken, expectedAmount)
         end
 
-        Note over P: Accumulate assets
+        Note over P: Accumulate totalAssetsReceived
     end
 
-    Note over P: Add cash buffer × f<br/>Distribute to users<br/>Burn shares
+    Note over P: Validate:<br/>actualPct = (totalWithdrawn * 1e18) / totalNAV<br/>require(|actualPct - expectedPct| <= tolerance)
+
+    Note over P: Add cash buffer if used<br/>Distribute to users<br/>Burn shares
 
     P->>FL: approve(amount + fee)
     FL-->>P: (flash loan auto-repays)
@@ -348,46 +375,46 @@ sequenceDiagram
         Note over P: Deserialize step.data based on step.operation
 
         alt step.operation == Withdraw
-            opt Provide liquidity
-                P->>C1: transfer(providedToken, providedAmount)
+            opt Provide flash loan liquidity
+                P->>C1: transfer(flashLoanToken, providedAmount)
             end
-            P->>C1: withdraw(percentage, outputToken, providedToken, providedAmount, expectedToken, expectedAmount, params)
+            P->>C1: withdraw(percentage, outputToken, flashLoanToken, providedAmount, expectedAmount, params)
 
-            Note over C1: FIXED proportional logic:<br/>- Use provided liquidity if any<br/>- Withdraw percentage of collateral<br/>- Swap to outputToken
+            Note over C1: FIXED proportional logic:<br/>- Use flash loan liquidity if any<br/>- Withdraw percentage of collateral<br/>- Swap to outputToken
 
             C1->>C1: approve(parent, outputToken, actualWithdrawn)
             P->>C1: transferFrom(outputToken, actualWithdrawn)
 
-            opt Collect expected tokens
-                C1->>C1: approve(parent, expectedToken, expectedAmount)
-                P->>C1: transferFrom(expectedToken, expectedAmount)
+            opt Collect flash loan repayment
+                C1->>C1: approve(parent, flashLoanToken, expectedAmount)
+                P->>C1: transferFrom(flashLoanToken, expectedAmount)
             end
 
         else step.operation == Deposit
             P->>C2: transfer(depositToken, depositAmount)
-            opt Provide liquidity
-                P->>C2: transfer(providedToken, providedAmount)
+            opt Provide flash loan liquidity
+                P->>C2: transfer(flashLoanToken, providedAmount)
             end
-            P->>C2: deposit(depositToken, depositAmount, providedToken, providedAmount, expectedToken, expectedAmount, commands)
+            P->>C2: deposit(depositToken, depositAmount, flashLoanToken, providedAmount, expectedAmount, commands)
 
-            Note over C2: Execute commands in data:<br/>- Use provided liquidity if any<br/>- Execute with deposit token<br/>- Approve expected tokens
+            Note over C2: Execute commands in data:<br/>- Use flash loan liquidity if any<br/>- Execute with deposit token<br/>- Approve flash loan repayment
 
-            opt Collect expected tokens
-                C2->>C2: approve(parent, expectedToken, expectedAmount)
-                P->>C2: transferFrom(expectedToken, expectedAmount)
+            opt Collect flash loan repayment
+                C2->>C2: approve(parent, flashLoanToken, expectedAmount)
+                P->>C2: transferFrom(flashLoanToken, expectedAmount)
             end
 
         else step.operation == Internal
-            opt Provide liquidity
-                P->>C1: transfer(providedToken, providedAmount)
+            opt Provide flash loan liquidity
+                P->>C1: transfer(flashLoanToken, providedAmount)
             end
-            P->>C1: rebalance(providedToken, providedAmount, expectedToken, expectedAmount, commands)
+            P->>C1: rebalance(flashLoanToken, providedAmount, expectedAmount, commands)
 
             Note over C1: Internal optimization in data:<br/>- Refinance debt<br/>- Adjust leverage<br/>- Compound rewards
 
-            opt Collect expected tokens
-                C1->>C1: approve(parent, expectedToken, expectedAmount)
-                P->>C1: transferFrom(expectedToken, expectedAmount)
+            opt Collect flash loan repayment
+                C1->>C1: approve(parent, flashLoanToken, expectedAmount)
+                P->>C1: transferFrom(flashLoanToken, expectedAmount)
             end
         end
     end
@@ -414,8 +441,9 @@ steps = [
     data: encode(
       1e18,                    // percentage: 100%
       PT_TOKEN,                // outputToken: receive PT
-      USDT_TOKEN, 2000e6,      // providedToken/Amount: flash loan for deleverage
-      address(0), 0,           // expectedToken/Amount: parent keeps liquidity
+      USDT_TOKEN,              // flashLoanToken: flash loan for deleverage
+      2000e6,                  // providedAmount: flash loan amount
+      0,                       // expectedAmount: parent keeps liquidity
       morphoParams
     )
   },
@@ -424,8 +452,9 @@ steps = [
     operation: RebalanceOp.Deposit,
     data: encode(
       PT_TOKEN, ptAmount,      // depositToken/Amount: deposit received PT
-      address(0), 0,           // providedToken/Amount: no additional liquidity
-      USDT_TOKEN, 2000e6,      // expectedToken/Amount: strategy borrows and returns
+      USDT_TOKEN,              // flashLoanToken: same token
+      0,                       // providedAmount: already provided in step 1
+      2000e6,                  // expectedAmount: strategy borrows and returns
       aaveCommands
     )
   }
@@ -439,8 +468,9 @@ steps = [
     childIndex: 0,
     operation: RebalanceOp.Internal,
     data: encode(
-      USDC_TOKEN, 1000e6,      // providedToken/Amount: flash loan for refinancing
-      USDC_TOKEN, 1000e6,      // expectedToken/Amount: expect flash loan back
+      USDC_TOKEN,              // flashLoanToken: flash loan for refinancing
+      1000e6,                  // providedAmount: flash loan amount
+      1000e6,                  // expectedAmount: expect flash loan back
       refinanceCommands
     )
   }
@@ -500,6 +530,7 @@ See ADR-0003 for detailed unified rebalance design.
 ## Related ADRs
 - [ADR-0003: Vault Architecture v2](0003-vault-architecture.md) - Defines overall epoch-based architecture and multi-child allocation
 - [ADR-0004: NAV Calculation Method](0004-nav-calculation-method.md) - NAV snapshots used in processEpoch
+- [ADR-0009: Selective Withdrawal with Tolerance-Based Validation](0009-selective-withdrawal-validation.md) - Implements gas-efficient selective withdrawal instead of proportional from all strategies
 
 ## Requirements Traceability
 - **FR-001.1**: Deposit Flow - Implemented through batch deposits with epoch processing and slippage protection

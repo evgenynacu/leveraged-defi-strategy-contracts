@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IPriceOracle.sol";
@@ -20,6 +21,10 @@ import "../interfaces/IOracleConsumer.sol";
  * protection at the entry point level (see ADR-0007). All external functions that
  * call _swap must be protected with nonReentrant modifier.
  *
+ * IMPORTANT: Upgradeability
+ * This contract is designed to be used with upgradeable contracts.
+ * Uses initializer pattern instead of constructor (see TR-001.1).
+ *
  * Security features:
  * - SR-002.3: Command validation with slippage limits (reentrancy guard at caller level)
  * - SR-009.1: Event logging for audit trail (USD values for all flows)
@@ -29,8 +34,9 @@ import "../interfaces/IOracleConsumer.sol";
  * Related ADRs:
  * - ADR-0006: Child Strategy Interface
  * - ADR-0007: Reentrancy Protection Strategy
+ * - ADR-0001: Upgradeable Contract Architecture
  */
-abstract contract SwapHelper is IOracleConsumer {
+abstract contract SwapHelper is Initializable, IOracleConsumer {
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
@@ -107,13 +113,17 @@ abstract contract SwapHelper is IOracleConsumer {
     error SwapFailed(address router, string reason);
     error ApprovalFailed(address token, address spender);
 
-    // ============ Constructor ============
+    // ============ Initializer ============
 
     /**
      * @notice Initialize SwapHelper with price oracle
+     * @dev This function replaces the constructor for upgradeable contracts.
+     *      Must be called during contract initialization.
+     *      Can only be called once due to onlyInitializing modifier.
+     *
      * @param _priceOracle Price oracle address
      */
-    constructor(address _priceOracle) {
+    function __SwapHelper_init(address _priceOracle) internal onlyInitializing {
         if (_priceOracle == address(0)) revert ZeroAddress();
         priceOracle = IPriceOracle(_priceOracle);
     }
