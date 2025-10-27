@@ -10,7 +10,7 @@
 
 ---
 
-## Phase 1: Core Infrastructure (Foundation) 🟡
+## Phase 1: Core Infrastructure (Foundation) ✅
 
 ### 1.1 Oracle & Pricing ✅
 - [x] PriceOracle implementation
@@ -28,18 +28,28 @@
 - [x] Precise approval management
 - [x] Event logging (SR-009.1)
 - [x] Integration tests
-- [x] ADR-0007: Reentrancy Protection Strategy (decision documented, implementation in Phase 3)
-- [x] ADR-0008: LeveragedStrategy Architecture (decision documented, implementation in Phase 2)
-- [x] ADR-0002: Command-Based Execution updates (decision documented, implementation in Phase 2)
 
-**Note:** ADRs 0002, 0007, 0008 document architectural decisions. Implementation tracked in subsequent phases.
+### 1.3 Architecture Documentation ✅
+- [x] ADR-0001: Upgradeable Contract Architecture
+- [x] ADR-0002: Command-Based Execution (updated for inheritance pattern)
+- [x] ADR-0003: Vault Architecture v2 (updated for manual strategy selection)
+- [x] ADR-0004: NAV Calculation Method
+- [x] ADR-0005: Deposit & Withdrawal Settlement (updated for manual allocation)
+- [x] ADR-0006: Child Vault Interface (updated for flash loan pattern)
+- [x] ADR-0007: Reentrancy Protection Strategy
+- [x] ADR-0008: LeveragedStrategy Architecture
+- [x] ADR-0009: Selective Withdrawal with Tolerance-Based Validation
+- [x] Updated all requirements documents (FR, TR, SR, OR) for manual mode
+- [x] Updated TODO.md to remove obsolete weight invariant tasks
 
-### 1.3 Access Control (MVP) ⚪
+**Note:** All core architectural decisions documented. Implementation tracked in subsequent phases.
+
+### 1.4 Access Control (MVP) ⚪
 **Dependencies:** Phase 2 completion
 
 **Note:** Internal access control for vault/strategies will be implemented in MVP. External governance contracts deferred to post-launch.
 
-#### 1.3.1 Internal Access Control (MVP)
+#### 1.4.1 Internal Access Control (MVP)
 - [ ] ParentVault: Ownable pattern
   - [ ] Owner address (hw wallet or multisig)
   - [ ] onlyOwner modifier for critical functions
@@ -53,7 +63,7 @@
   - [ ] pause()/unpause() functions (onlyOwner)
   - [ ] whenNotPaused modifier
 
-#### 1.3.2 Deferred to Post-Launch (External Governance)
+#### 1.4.2 Deferred to Post-Launch (External Governance)
 - [ ] ~~TimelockController contract~~
 - [ ] ~~Governance token & voting~~
 - [ ] ~~Multi-role RBAC (separate GOVERNANCE/EMERGENCY roles)~~
@@ -64,7 +74,7 @@
 
 ---
 
-## Phase 2: Child Strategies (Inheritance-Based) 🟡
+## Phase 2: Child Strategies (Inheritance-Based) ✅
 
 ### 2.1 Base Leveraged Strategy ✅
 **Dependencies:** 1.2 (SwapHelper completed)
@@ -104,35 +114,38 @@
 
 **Related ADRs:** ADR-0008, ADR-0002, ADR-0007
 
-### 2.2 Aave Leveraged Strategy ⚪
+### 2.2 Aave Leveraged Strategy ✅
 **Dependencies:** 2.1
 
 #### 2.2.1 Aave Strategy Implementation
-- [ ] Create `AaveLeveragedStrategy.sol`
-  - [ ] Inherit LeveragedStrategy
-  - [ ] Implement `_supply()` - Aave Pool.supply()
-  - [ ] Implement `_withdraw()` - Aave Pool.withdraw()
-  - [ ] Implement `_borrow()` - Aave Pool.borrow() with variable rate
-  - [ ] Implement `_repay()` - Aave Pool.repay()
-  - [ ] Implement `_getCollateralAsset()` / `_getCollateralAmount()` - query Aave user data
-  - [ ] Implement `_getDebtAsset()` / `_getDebtAmount()` - query Aave user data
-  - [ ] Multi-currency debt support (USDC/USDT/DAI)
-- [ ] Strategy-specific state
-  - [ ] Aave Pool address
-  - [ ] Market IDs mapping
+- [x] Create `AaveLeveragedStrategy.sol`
+  - [x] Inherit LeveragedStrategy
+  - [x] Implement `_supply()` - Aave Pool.supply()
+  - [x] Implement `_withdraw()` - Aave Pool.withdraw()
+  - [x] Implement `_borrow()` - Aave Pool.borrow() with variable rate
+  - [x] Implement `_repay()` - Aave Pool.repay()
+  - [x] Implement `_getCollateralAsset()` / `_getDebtAsset()` - single asset accessors
+  - [x] Implement `_getPositionAmounts()` - query Aave PoolDataProvider
+  - [x] Implement `_calculateSafeWithdrawAmounts()` - Aave-specific health factor logic
+  - [x] Single collateral + single debt asset support
+- [x] Strategy-specific state
+  - [x] Aave Pool address (immutable)
+  - [x] Collateral asset address (immutable)
+  - [x] Debt asset address (immutable)
+  - [x] On-demand approval system (_approveIfNeeded)
 
 #### 2.2.2 Aave Strategy Testing
-- [ ] Unit tests
-  - [ ] All abstract method implementations
-  - [ ] Command sequence execution
-  - [ ] Leverage mechanics
-  - [ ] Multi-currency debt
-- [ ] Integration tests
-  - [ ] Full deposit cycle (with leverage)
-  - [ ] Full withdrawal cycle (deleverage)
-  - [ ] Rebalance operations (debt refinancing)
-  - [ ] Edge cases (liquidation threshold proximity)
-- [ ] Fork tests (Aave mainnet fork)
+- [x] Unit tests (471 lines)
+  - [x] All abstract method implementations
+  - [x] Command sequence execution
+  - [x] Leverage mechanics
+  - [x] Position querying via PoolDataProvider
+- [x] Mock-based integration tests
+  - [x] Full deposit cycle (with leverage)
+  - [x] Full withdrawal cycle (deleverage)
+  - [x] Rebalance operations
+  - [x] Edge cases validation
+- [ ] Fork tests (Aave mainnet fork) - Deferred
 
 **Related Requirements:**
 - FR-002.1: Multi-protocol support
@@ -192,14 +205,13 @@
 ## Phase 3: Parent Vault 🔴
 
 ### 3.1 Vault Core ⚪
-**Dependencies:** 2.2, 1.3
+**Dependencies:** 2.2, 1.4
 
 #### 3.1.1 Vault Storage & State
 - [ ] Create `ParentVault.sol`
   - [ ] ERC4626 interface implementation
   - [ ] Epoch management
   - [ ] Child strategy registry
-  - [ ] Weight management
   - [ ] Share accounting
 - [ ] Storage layout optimization
 
@@ -243,8 +255,7 @@
 - [ ] Implement `processDeposits()`
   - [ ] Epoch settlement
   - [ ] Share minting
-  - [ ] Asset distribution across children
-  - [ ] Weight-based allocation
+  - [ ] Asset distribution to selected children (manual strategy selection)
   - [ ] Flash loan for leverage
   - [ ] Multi-child coordination
 - [ ] Add `nonReentrant` guard
@@ -292,26 +303,25 @@
 ### 3.4 Rebalancing System ⚪
 **Dependencies:** 3.1, 2.2
 
-#### 3.4.1 Weight Management
-- [ ] Implement weight invariants (ADR-0003)
-  - [ ] Weight sum = 100%
-  - [ ] Min/max weight per child
-  - [ ] Weight update mechanism
-  - [ ] Gradual weight transitions
-- [ ] `setChildWeights()` function
-- [ ] `_checkWeightInvariants()` implementation
-- [ ] Tests for weight invariants
+#### 3.4.1 Allocation Monitoring (View Functions)
+- [ ] View functions for current allocations
+  - [ ] Per-child NAV calculation
+  - [ ] Per-child allocation percentage
+  - [ ] Total portfolio NAV
+  - [ ] Helper functions for manager decision-making
+- [ ] Tests for allocation view functions
 
-#### 3.4.2 Rebalancing Operations
-- [ ] Implement `rebalance()`
-  - [ ] Cross-child rebalancing
-  - [ ] Intra-child rebalancing
-  - [ ] Weight-based target allocation
+#### 3.4.2 Rebalancing Operations (Manual Mode)
+- [ ] Implement `rebalance()` (manager-initiated)
+  - [ ] Cross-child rebalancing (manual strategy selection)
+  - [ ] Intra-child rebalancing (optimization)
   - [ ] Flash loan for liquidity
   - [ ] Multi-step coordination
+  - [ ] NAV invariant checks (no weight invariants)
 - [ ] Add `nonReentrant` guard
 - [ ] Command-based execution
 - [ ] Tests for rebalancing scenarios
+- [ ] Keeper automation for delayed rebalancing when protocol caps lift
 
 **Related ADRs:** ADR-0003
 
@@ -448,7 +458,6 @@
 - [ ] Echidna property tests
   - [ ] Invariant: Share price never decreases (except losses)
   - [ ] Invariant: Total assets = sum of child assets
-  - [ ] Invariant: Weight sum = 100%
   - [ ] Invariant: No unauthorized transfers
 - [ ] Foundry invariant tests
 
@@ -520,9 +529,11 @@
 
 #### 6.2.1 Keeper Implementation
 - [ ] Typescript/Python keeper service
-  - [ ] Deposit processing automation
-  - [ ] Withdrawal processing automation
-  - [ ] Rebalancing automation
+  - [ ] Deposit processing execution (manager selects strategies)
+  - [ ] Withdrawal processing execution (manager selects strategies)
+  - [ ] Stop-loss automation (keeper-controlled)
+  - [ ] Take-profit automation (keeper-controlled)
+  - [ ] Delayed rebalancing automation (execute when protocol caps lift)
   - [ ] Health monitoring
   - [ ] Gas price optimization
 - [ ] Off-chain computation
@@ -624,9 +635,9 @@
 #### 7.1.2 Parameter Governance
 - [ ] Parameter registry contract
   - [ ] Fee parameters
-  - [ ] Weight bounds
   - [ ] Leverage limits
   - [ ] Slippage tolerances
+  - [ ] Stop-loss/take-profit thresholds
 - [ ] Governance-based updates
 - [ ] Proposal & voting (if DAO planned)
 
@@ -672,24 +683,24 @@
 
 **Minimum Viable Product (MVP) Path (Friends & Family Launch):**
 
-1. ✅ **PriceOracle** (Completed)
-2. ✅ **SwapHelper** (Completed)
-3. ✅ **ADR-0008: LeveragedStrategy Architecture** (Completed)
-4. **IChildStrategy Interface** (2.1.1)
-5. **LeveragedStrategy Base** (2.1.2)
-6. **AaveLeveragedStrategy** (2.2)
-7. **MorphoLeveragedStrategy** (2.3)
-8. **ParentVault Core** (3.1)
-9. **Deposit Flow** (3.2)
-10. **Withdrawal Flow** (3.3)
-11. **Rebalancing** (3.4)
-12. **Command Integration** (3.5)
-13. **Flash Loan Integration** (3.6)
-14. **Internal Access Control** (1.3 - Ownable + keeper + pause)
-15. **Basic UUPS** (4.1 - optional for MVP)
-16. **Testing** (5.1)
-17. **Testnet Deployment** (6.1)
-18. **Keeper Backend** (6.2)
+1. ✅ **PriceOracle** (Completed - Phase 1.1)
+2. ✅ **SwapHelper** (Completed - Phase 1.2)
+3. ✅ **Architecture Documentation** (Completed - Phase 1.3)
+4. ✅ **IChildStrategy Interface** (Completed - Phase 2.1.1)
+5. ✅ **LeveragedStrategy Base** (Completed - Phase 2.1.2)
+6. ✅ **AaveLeveragedStrategy** (Completed - Phase 2.2)
+7. **MorphoLeveragedStrategy** (Phase 2.3 - Next up)
+8. **ParentVault Core** (Phase 3.1)
+9. **Deposit Flow** (Phase 3.2)
+10. **Withdrawal Flow** (Phase 3.3)
+11. **Rebalancing** (Phase 3.4 - Manual mode)
+12. **Command Integration** (Phase 3.5)
+13. **Flash Loan Integration** (Phase 3.6)
+14. **Internal Access Control** (Phase 1.4 - Ownable + keeper + pause)
+15. **Basic UUPS** (Phase 4.1 - optional for MVP)
+16. **Testing** (Phase 5.1)
+17. **Testnet Deployment** (Phase 6.1)
+18. **Keeper Backend** (Phase 6.2 - with stop-loss/take-profit)
 
 **Deferred to Post-Launch (Production):**
 - External governance contracts (TimelockController, voting)
@@ -703,37 +714,45 @@
 
 ## Next Steps
 
-### Phase 2.1: IChildStrategy Interface & LeveragedStrategy Base
-1. Create IChildStrategy.sol interface with full documentation
-2. Define all function signatures (deposit, withdraw, rebalance, totalAssets)
-3. Define events (Deposited, Withdrawn, Rebalanced)
-4. Create LeveragedStrategy.sol abstract contract
-5. Implement command execution framework (_executeCommands)
-6. Define CommandType enum and Command struct
-7. Implement abstract methods stubs (_supply, _withdraw, _borrow, _repay, etc.)
-8. Integrate SwapHelper inheritance
-9. Implement onlyParent access control
-10. Write comprehensive tests for base functionality
-
-### Phase 2.2-2.3: Protocol Implementations
-1. **Aave**: Implement all abstract methods for Aave V3
-2. **Morpho**: Implement all abstract methods for Morpho Blue
+### Current Focus: Phase 2.3 - Morpho Leveraged Strategy Implementation
+**Next Steps:**
+1. Create `MorphoLeveragedStrategy.sol` contract
+2. Implement all abstract methods for Morpho Blue
 3. Add protocol-specific state and configuration
 4. Write unit tests for all methods
-5. Write integration tests with mainnet forks
+5. Write integration tests with Morpho mainnet fork
 6. Test multi-currency debt support
 
-### Phase 1.3 & 3: ParentVault + Access Control
+### Phase 1.4 & 3: ParentVault + Access Control
 1. **Access Control in ParentVault**:
    - Ownable pattern (owner = hw wallet/multisig)
    - Keeper management (keeper address + onlyKeeper modifier)
    - Pause mechanism (paused state + pause/unpause functions)
 2. **ParentVault Core**: ERC4626, epochs, child registry, NAV calculation
-3. **Deposit/Withdrawal flows**: User interfaces + keeper processing
-4. **Rebalancing**: Weight management + cross-child operations
+3. **Deposit/Withdrawal flows**: User interfaces + keeper processing (manual strategy selection)
+4. **Rebalancing**: Manual strategy selection + allocation monitoring view functions
 5. **Command Integration**: Prepare and pass commands to children
 6. **Flash Loan Integration**: Morpho/Balancer/Aave providers
 
+## Recent Updates
+
+### 2025-01-24: Architecture Changes - Manual Strategy Management
+- **Removed automatic weight-based allocation**: Parent vault no longer enforces target weights or automatic distribution
+- **Manual strategy selection**: Manager explicitly selects which child strategy for each deposit/withdrawal
+- **Keeper responsibilities updated**:
+  - Execute manager-selected strategies for deposits/withdrawals
+  - Automated stop-loss execution when NAV drops below thresholds
+  - Automated take-profit execution when profit targets reached
+  - Delayed rebalancing automation (execute when protocol caps lift)
+- **Documentation updated**: All ADRs, requirements, and roadmap reflect manual mode
+- **Phase 2.2 Completed**: AaveLeveragedStrategy fully implemented with 471 lines of tests
+
+### Progress Summary
+- **Phase 1: Core Infrastructure** ✅ - Fully completed
+- **Phase 2: Child Strategies** ✅ - Aave implementation completed, Morpho next
+- **Phase 3: Parent Vault** 🔴 - Not started
+- **Next milestone**: Morpho strategy implementation, then ParentVault core
+
 This roadmap should be updated as implementation progresses.
 
-**Last Updated:** 2025-01-10
+**Last Updated:** 2025-01-24

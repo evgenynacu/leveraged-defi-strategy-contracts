@@ -32,21 +32,26 @@ We need a safe, fair, and simple vault system with multi-strategy composition. O
 - **Child strategies:** single owner (parent), synchronous operations, no internal shares, multi-token support.
 - **Rounding:** round down to the vault on share/asset conversions to avoid dust exploits.
 
-### Multi-Child Allocation Strategy
+### Multi-Child Strategy Management (Manual Mode)
 When multiple child vaults are present:
-- **Target weights:** Each child vault has a configurable target allocation percentage (e.g., Child A: 60%, Child B: 40%).
-- **Keeper-driven allocation:** Keeper (off-chain) determines actual allocation per epoch based on:
-  - Target weights and current allocations
-  - Available liquidity in underlying protocols
-  - Lending protocol limits (borrow caps, collateral caps)
-  - Gas optimization (may allocate 100% to one child if within threshold)
-- **Threshold-based flexibility:** If actual allocation is within `target ± threshold`, deposits may be directed entirely to one child for gas efficiency or liquidity management.
-  - Example: If Child A target is 60% ± 5%, and current is 58%, new deposits can go 100% to Child A until it reaches 65%.
-- **Rebalancing:** When actual weights drift beyond threshold, reconciliation happens via:
-  - **Organic rebalancing:** Future deposit/withdrawal flows adjusted to bring weights back to target (no forced liquidations)
-  - **Active rebalancing:** Keeper-initiated `rebalance()` function to move assets between children when necessary
-- **Liquidity awareness:** Respect each child's withdrawability; if a child is illiquid during withdrawal, deliver its realizable portion and queue the remainder (see ADR-0005).
-- **Transparency:** Expose per-child values and current vs target allocations via view functions.
+- **Manual strategy selection:** Vault manager/keeper manually selects which child strategy to use for each deposit/withdrawal operation
+- **No automatic proportions:** Parent vault does NOT enforce target allocation percentages or automatic distribution logic
+- **Manager responsibilities:**
+  - Decide which strategy receives new deposits based on current conditions
+  - Choose which strategy to withdraw from based on liquidity and profitability
+  - Determine when and how to move funds between strategies (rebalancing)
+  - Monitor overall portfolio allocation and adjust manually as needed
+- **Keeper responsibilities:**
+  - Execute deposit/withdrawal commands as directed by manager
+  - Monitor stop-loss thresholds and execute protective deleveraging
+  - Monitor take-profit targets and execute profit-taking operations
+  - Handle delayed rebalancing (e.g., when protocol caps prevent immediate deposits)
+- **Rationale for manual control:**
+  - Initial implementation prioritizes safety and explicit control over automation
+  - Manager can account for complex factors (protocol caps, market conditions, yield opportunities)
+  - Allows flexible response to changing market conditions
+  - May be automated in future versions once patterns are well understood
+- **Transparency:** Expose per-child values and actual allocations via view functions for manager decision-making.
 
 ### Unified Rebalancing Architecture
 
@@ -149,9 +154,6 @@ function _executeRebalance(RebalanceStep[] memory steps) internal {
 
     // INVARIANT: NAV should not decrease significantly (only gas/slippage)
     require(navAfter >= navBefore * 99 / 100, "NAV decreased too much");
-
-    // INVARIANT: weights must be within thresholds after rebalance
-    _checkWeightInvariants();
 }
 ```
 
@@ -220,10 +222,10 @@ function _executeRebalance(RebalanceStep[] memory steps) internal {
 ## Requirements Traceability
 - **FR-001.3**: Fair Entry/Exit - Implemented through deltaNAV-based entry and proportional exit
 - **FR-002.1**: Child Strategy Management - Parent/child design with single owner pattern
-- **FR-002.2**: Asset Allocation - Target weights and keeper-driven allocation strategy
+- **FR-002.2**: Asset Allocation - Manual strategy selection by manager, view functions for allocation monitoring
 - **FR-002.3**: Rebalancing - Unified rebalancing architecture with step-based approach
 - **TR-005.1**: Unified Rebalancing System - RebalanceOp enum and RebalanceStep struct implemented
-- **TR-005.2**: Rebalancing Function - Single rebalance() function with NAV and weight invariant checks
+- **TR-005.2**: Rebalancing Function - Single rebalance() function with NAV invariant checks
 - **SR-001.1**: Role-Based Permissions - Parent-child ownership and keeper authorization
 - **SR-002.1**: NAV Preservation - NAV invariant checks during rebalancing
 - **SR-002.2**: Asset Protection - Proportional exit logic ensures fair asset distribution

@@ -33,14 +33,17 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 - Child strategies must support multi-token operations (not just base asset)
 - Each child strategy must provide totalAssets() for NAV calculation
 
-### FR-002.2: Asset Allocation
-- System must support configurable target weights for each child vault
-- Keeper must be able to determine actual allocation per epoch based on:
-  - Target weights and current allocations
+### FR-002.2: Asset Allocation (Manual Mode)
+- Manager must manually select which child strategy receives each deposit
+- Manager must manually select which child strategy to withdraw from
+- Allocation decisions must consider:
+  - Current allocation across strategies and desired portfolio balance
   - Available liquidity in underlying protocols
   - Lending protocol limits (borrow caps, collateral caps)
-  - Gas optimization
-- System must support threshold-based flexibility for efficient gas usage
+  - Current yield opportunities and borrowing costs
+  - Gas costs for different execution paths
+- System must NOT enforce automatic target weights or threshold-based distributions
+- Parent vault must provide view functions to expose per-child allocations for manager decision-making
 
 ### FR-002.3: Rebalancing
 - System must support organic rebalancing through deposit/withdrawal flows
@@ -136,10 +139,15 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
   - **Risk Management** - maintaining safe collateral ratios within strategy parameters
   - **Yield Optimization** - maximizing returns while staying within risk limits
 - Keeper (off-chain service) must handle:
-  - **Market Monitoring** - watching for optimal entry/exit opportunities
-  - **Risk Monitoring** - alerting on approaching liquidation thresholds
-  - **Rebalancing Triggers** - identifying when cross-strategy moves are beneficial
+  - **Stop-Loss Execution** - automatically deleverage or exit positions when NAV drops below configured thresholds
+  - **Take-Profit Execution** - automatically lock in profits when NAV reaches configured profit targets
+  - **Delayed Rebalancing** - execute queued rebalancing operations when protocol limits allow
+  - **Risk Monitoring** - continuously monitor liquidation risks and collateral ratios
   - **Performance Tracking** - measuring strategy effectiveness and ROI
+- Manager (human operator) must handle:
+  - **Strategy Selection** - manually choose which child strategy for each deposit/withdrawal
+  - **Rebalancing Decisions** - decide when and how to move funds between strategies
+  - **Portfolio Management** - monitor overall allocation and adjust as needed
 
 ### FR-006.6: Strategy Lifecycle Management
 - System must support adding new child strategies without disrupting existing ones

@@ -4,19 +4,7 @@ This document tracks pending improvements and clarifications for the ADR documen
 
 ## High Priority
 
-### 1. Add weight invariants concrete formula to ADR-0003
-**Status:** Pending
-**Description:** Define `_checkWeightInvariants()` implementation with concrete formulas
-- What are the weight thresholds?
-- How are they configured?
-- What happens if invariant fails (revert)?
-- Example implementation
-
-**Location:** ADR-0003, add new section after "Unified Rebalancing Architecture"
-
----
-
-### 2. Document commands validation in ADR-0002
+### 1. Document commands validation in ADR-0002
 **Status:** Pending
 **Description:** Specify concrete validation logic for command execution
 - What are "known attack patterns"?
@@ -33,7 +21,7 @@ This document tracks pending improvements and clarifications for the ADR documen
 
 ## Medium Priority
 
-### 3. Add gas estimation benchmarks for keeper operations
+### 2. Add gas estimation benchmarks for keeper operations
 **Status:** Pending
 **Description:** Document expected gas costs for each operation type
 - processDeposits() with N children
@@ -46,7 +34,7 @@ This document tracks pending improvements and clarifications for the ADR documen
 
 ---
 
-### 4. Design emergency procedures (pause, circuit breakers)
+### 3. Design emergency procedures (pause, circuit breakers)
 **Status:** Pending
 **Description:** Document emergency response mechanisms
 - Emergency pause mechanism
@@ -62,7 +50,7 @@ This document tracks pending improvements and clarifications for the ADR documen
 
 ---
 
-### 5. Design oracle failure handling mechanisms
+### 4. Design oracle failure handling mechanisms
 **Status:** Pending
 **Description:** Specify fallback logic for oracle failures
 - Maximum acceptable staleness (current: 1 hour mentioned)

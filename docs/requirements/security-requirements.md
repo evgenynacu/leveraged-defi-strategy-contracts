@@ -13,19 +13,20 @@ Security requirements for the leveraged DeFi strategy system covering access con
 
 ### SR-001.2: Keeper Authorization
 - Keeper role must be properly configured and managed
-- Keeper decisions must respect on-chain invariants:
-  - Target weight percentages and thresholds
+- Keeper must execute manager-approved strategy selections
+- Keeper operations must respect on-chain invariants:
   - Slippage protection (`minSharesOut` for deposits, `minAssetsOut` for withdrawals)
   - Single-owner constraint enforcement
   - NAV preservation (rebalance cannot significantly decrease NAV)
+- Keeper automatically executes risk management actions (stop-loss, take-profit)
 
 ## SR-002: Invariant Protection
 
 ### SR-002.1: NAV Preservation
 - NAV must not significantly decrease after operations (only gas/slippage tolerance)
 - NAV decrease threshold: maximum 1% (99% of previous NAV)
-- Weight constraints must be maintained after rebalancing
 - All borrowed flash loan funds must be repaid in same transaction
+- Manager responsible for maintaining desired portfolio allocations
 
 ### SR-002.2: Asset Protection
 - All intermediate tokens must be converted to strategy assets

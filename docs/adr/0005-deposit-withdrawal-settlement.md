@@ -49,10 +49,11 @@ We need fair batching without oracle reliance, supporting multiple children and 
    NAV_before = 0
    NAV_after = 0
    ```
-2. Keeper determines allocation to children based on:
+2. Manager determines allocation to children (manual selection):
    - Available liquidity in protocols
    - Lending limits not exceeded
-   - Target weights and thresholds (ADR-0003)
+   - Current allocations and portfolio balance
+   - Yield opportunities and borrowing costs
 3. Calculate NAV before any child operations:
    ```solidity
    NAV_before = 0;
@@ -422,7 +423,6 @@ sequenceDiagram
     Note over P: NAV_after = calculateTotalNAV()
 
     P->>P: require(NAV_after >= NAV_before × 0.99)
-    P->>P: checkWeightInvariants()
 
     P->>FL: approve(amount + fee)
     FL-->>P: (flash loan auto-repays)
@@ -497,29 +497,29 @@ steps = [
 
 Parent vault implements unified `rebalance()` for all rebalancing operations (see unified flow diagram above).
 
-**When needed:**
-- Actual weights drift beyond target ± threshold
+**When needed (manager decides):**
 - Migration to new strategy
 - Response to changing market conditions
+- Moving funds between strategies for better yields
 - Internal child optimization (refinance, leverage adjustment, rewards)
 
 **Security:**
 - Withdrawal operations use fixed proportional logic (same as user withdrawals)
 - Deposit operations use deltaNAV accounting (same as user deposits)
 - Internal operations protected by NAV invariant checks
-- Additional NAV and weight invariant checks after all steps complete
+- Additional NAV invariant check after all steps complete
 
 See ADR-0003 for detailed unified rebalance design.
 
 ### Access Control
 - **Keeper role:** Backend service that calls `processDeposits()`, `processWithdrawals()`, and `rebalance()`
-- Keeper decides when and where to allocate assets
-- Keeper must respect on-chain invariants:
-  - Target weight percentages and thresholds (ADR-0003)
+- **Manager role:** Decides when and where to allocate assets (strategy selection)
+- Keeper executes manager's decisions and must respect on-chain invariants:
   - Slippage protection (`minSharesOut` for deposits, `minAssetsOut` for withdrawals)
   - Single-owner constraint (only parent can call child vaults)
   - NAV preservation (rebalance cannot significantly decrease NAV)
 - Keeper provides optimized execution paths via commands (ADR-0002)
+- Keeper automatically executes stop-loss, take-profit, and delayed rebalancing operations
 
 ## Consequences
 - No NAV-based over/underpayments.
