@@ -10,14 +10,28 @@ import "../strategies/SwapHelper.sol";
  * @dev Used for testing SwapHelper functionality in isolation.
  *      Includes ReentrancyGuard to simulate entry-point protection
  *      as per ADR-0007: Reentrancy Protection Strategy.
+ *      For testing: uses initializer pattern to be compatible with upgradeable base contracts.
  */
 contract MockSwapHelper is SwapHelper, ReentrancyGuard {
 
     /**
-     * @notice Constructor
+     * @notice Constructor - disables initializers for implementation contract
+     * @dev For testing without proxy, this is commented out to allow direct initialization.
+     */
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Uncomment for production proxy deployment:
+        // _disableInitializers();
+    }
+
+    /**
+     * @notice Initialize mock swap helper
+     * @dev This function replaces the constructor for testing upgradeable patterns.
      * @param _priceOracle Price oracle address
      */
-    constructor(address _priceOracle) SwapHelper(_priceOracle) {}
+    function initialize(address _priceOracle) external initializer {
+        __SwapHelper_init(_priceOracle);
+    }
 
     /**
      * @notice Public wrapper for _swap to enable testing

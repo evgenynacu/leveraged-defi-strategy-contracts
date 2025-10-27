@@ -151,6 +151,11 @@ Security requirements for the leveraged DeFi strategy system covering access con
 ### SR-010.2: Protocol Integration Security
 - Validation of all external protocol calls and responses
 - Slippage protection for all DEX operations (Pendle, Odos, KyberSwap)
+- **Token Approval Policy**: All token approvals must use precise amounts (exact amount needed), never `type(uint256).max`
+  - Rationale: Minimizes risk exposure in case of external contract compromise
+  - Applies to: lending protocols (Aave, Morpho, Euler), DEX routers, and all external integrations
+  - Implementation: Use `safeIncreaseAllowance(spender, exactAmount)` pattern
+  - Cleanup: Reset approvals to zero after operations when possible
 - Lending protocol safety checks (Aave, Morpho, Euler):
   - Verify collateral and debt calculations
   - Monitor protocol health and utilization rates

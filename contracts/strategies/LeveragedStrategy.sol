@@ -101,8 +101,8 @@ abstract contract LeveragedStrategy is Initializable, SwapHelper, IChildStrategy
     /**
      * @notice Initialize strategy with parent vault and oracle
      * @dev This function replaces the constructor for upgradeable contracts.
-     *      Must be called immediately after proxy deployment.
-     *      Can only be called once due to initializer modifier.
+     *      Must be called during contract initialization (from child's initializer).
+     *      Can only be called once due to onlyInitializing modifier.
      *
      * @param _parent Parent vault address
      * @param _baseAsset Base asset address (e.g., USDC)

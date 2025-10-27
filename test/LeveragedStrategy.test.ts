@@ -60,7 +60,8 @@ describe("LeveragedStrategy", function () {
 
     // Deploy MockLeveragedStrategy
     const MockStrategyFactory = await ethers.getContractFactory("MockLeveragedStrategy");
-    strategy = await MockStrategyFactory.deploy(
+    strategy = await MockStrategyFactory.deploy();
+    await strategy.initialize(
       parent.address,
       await baseAsset.getAddress(),
       await priceOracle.getAddress()
@@ -82,8 +83,9 @@ describe("LeveragedStrategy", function () {
 
     it("Should revert if parent is zero address", async function () {
       const MockStrategyFactory = await ethers.getContractFactory("MockLeveragedStrategy");
+      const tempStrategy = await MockStrategyFactory.deploy();
       await expect(
-        MockStrategyFactory.deploy(
+        tempStrategy.initialize(
           ethers.ZeroAddress,
           await baseAsset.getAddress(),
           await priceOracle.getAddress()
@@ -93,8 +95,9 @@ describe("LeveragedStrategy", function () {
 
     it("Should revert if base asset is zero address", async function () {
       const MockStrategyFactory = await ethers.getContractFactory("MockLeveragedStrategy");
+      const tempStrategy = await MockStrategyFactory.deploy();
       await expect(
-        MockStrategyFactory.deploy(
+        tempStrategy.initialize(
           parent.address,
           ethers.ZeroAddress,
           await priceOracle.getAddress()

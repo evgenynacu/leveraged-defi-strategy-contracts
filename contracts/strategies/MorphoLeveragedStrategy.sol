@@ -2,26 +2,31 @@
 pragma solidity ^0.8.19;
 
 import "./LeveragedStrategy.sol";
-import {IPool} from "@aave/core-v3/contracts/interfaces/IPool.sol";
-import {IPoolDataProvider} from "@aave/core-v3/contracts/interfaces/IPoolDataProvider.sol";
-import {IPoolAddressesProvider} from "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
+import {IMorpho, MarketParams, Id, Position, Market} from "@morpho-org/morpho-blue/src/interfaces/IMorpho.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
- * @title AaveLeveragedStrategy
- * @notice Leveraged strategy implementation for Aave V3 lending protocol
+ * @title MorphoLeveragedStrategy
+ * @notice Leveraged strategy implementation for Morpho Blue lending protocol
  * @dev Implements protocol-specific methods for:
- *      - Supply/withdraw collateral via Aave Pool
- *      - Borrow/repay debt with variable interest rate
- *      - Query collateral and debt positions via PoolDataProvider
+ *      - Supply/withdraw collateral via Morpho Blue
+ *      - Borrow/repay debt with share-based accounting
+ *      - Query collateral and debt positions via Morpho position tracking
  *
  * Key Features:
  * - Single collateral asset (e.g., PT tokens)
  * - Single debt asset (e.g., USDC)
- * - Variable interest rate mode (interestRateMode = 2)
+ * - Share-based debt accounting (similar to Aave V3)
+ * - Market identified by unique Id (derived from MarketParams)
  * - Atomic operations via inherited command execution
  * - Upgradeable via UUPS proxy pattern
+ *
+ * Morpho Blue Specifics:
+ * - Uses MarketParams struct to identify markets
+ * - Collateral is tracked separately from supply (we only use collateral)
+ * - Borrow positions use share-based accounting for precision
+ * - Need to convert between shares and assets for debt calculations
  *
  * IMPORTANT: Upgradeability
  * This contract is designed to be deployed behind a UUPS upgradeable proxy.
@@ -33,21 +38,16 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * - ADR-0008: LeveragedStrategy Architecture
  * - ADR-0001: Upgradeable Contract Architecture
  */
-contract AaveLeveragedStrategy is LeveragedStrategy {
+contract MorphoLeveragedStrategy is LeveragedStrategy {
     using SafeERC20 for IERC20;
-
-    // ============ Constants ============
-
-    /// @notice Aave interest rate mode: 2 = variable rate
-    uint256 private constant INTEREST_RATE_MODE = 2;
-
-    /// @notice Aave referral code (0 = no referral)
-    uint16 private constant REFERRAL_CODE = 0;
 
     // ============ Storage Variables ============
 
-    /// @notice Aave V3 Pool contract
-    IPool public pool;
+    /// @notice Morpho Blue contract
+    IMorpho public morpho;
+
+    /// @notice Market ID for this strategy
+    Id public marketId;
 
     /// @notice Collateral asset address (e.g., PT token)
     address public collateralAsset;
@@ -58,6 +58,7 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
     // ============ Errors ============
 
     error InvalidProtocol();
+    error InvalidMarketId();
 
     // ============ Constructor & Initializer ============
 
@@ -76,7 +77,7 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
     }
 
     /**
-     * @notice Initialize Aave strategy (for upgradeable deployment)
+     * @notice Initialize Morpho strategy (for upgradeable deployment)
      * @dev This function replaces the constructor for upgradeable contracts.
      *      Must be called immediately after proxy deployment.
      *      Can only be called once due to initializer modifier.
@@ -84,28 +85,32 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
      * @param _parent Parent vault address
      * @param _baseAsset Base asset address (e.g., USDC)
      * @param _priceOracle Price oracle address
-     * @param _pool Aave V3 Pool address
-     * @param _collateralAsset Collateral asset address
-     * @param _debtAsset Debt asset address
+     * @param _morpho Morpho Blue contract address
+     * @param _marketId Market ID for this strategy
      */
     function initialize(
         address _parent,
         address _baseAsset,
         address _priceOracle,
-        address _pool,
-        address _collateralAsset,
-        address _debtAsset
+        address _morpho,
+        Id _marketId
     ) external initializer {
-        if (_pool == address(0)) revert InvalidProtocol();
-        if (_collateralAsset == address(0)) revert InvalidToken();
-        if (_debtAsset == address(0)) revert InvalidToken();
+        if (_morpho == address(0)) revert InvalidProtocol();
+        if (Id.unwrap(_marketId) == bytes32(0)) revert InvalidMarketId();
 
         // Initialize base contracts
         __LeveragedStrategy_init(_parent, _baseAsset, _priceOracle);
 
-        pool = IPool(_pool);
-        collateralAsset = _collateralAsset;
-        debtAsset = _debtAsset;
+        morpho = IMorpho(_morpho);
+        marketId = _marketId;
+
+        // Extract collateral and debt assets from market params
+        MarketParams memory params = morpho.idToMarketParams(_marketId);
+        if (params.collateralToken == address(0)) revert InvalidToken();
+        if (params.loanToken == address(0)) revert InvalidToken();
+
+        collateralAsset = params.collateralToken;
+        debtAsset = params.loanToken;
 
         // Note: We don't pre-approve tokens. Approvals are done on-demand via _approveIfNeeded
     }
@@ -113,19 +118,21 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
     // ============ Protocol-Specific Implementation ============
 
     /**
-     * @notice Supply collateral to Aave
+     * @notice Supply collateral to Morpho Blue
      * @inheritdoc LeveragedStrategy
+     * @dev Uses supplyCollateral() instead of supply() to post collateral without earning interest
      */
     function _supply(address asset, uint256 amount) internal override {
         if (asset != collateralAsset) revert InvalidToken();
         if (amount == 0) revert InvalidAmount();
 
-        _approveIfNeeded(asset, address(pool), amount);
-        pool.supply(asset, amount, address(this), REFERRAL_CODE);
+        MarketParams memory params = morpho.idToMarketParams(marketId);
+        _approveIfNeeded(asset, address(morpho), amount);
+        morpho.supplyCollateral(params, amount, address(this), "");
     }
 
     /**
-     * @notice Withdraw collateral from Aave
+     * @notice Withdraw collateral from Morpho Blue
      * @inheritdoc LeveragedStrategy
      */
     function _withdraw(address asset, uint256 amount)
@@ -136,29 +143,36 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
         if (asset != collateralAsset) revert InvalidToken();
         if (amount == 0) revert InvalidAmount();
 
-        actualWithdrawn = pool.withdraw(asset, amount, address(this));
+        MarketParams memory params = morpho.idToMarketParams(marketId);
+        morpho.withdrawCollateral(params, amount, address(this), address(this));
+
+        // Morpho doesn't return withdrawn amount, assume it matches request
+        actualWithdrawn = amount;
     }
 
     /**
-     * @notice Borrow from Aave
+     * @notice Borrow from Morpho Blue
      * @inheritdoc LeveragedStrategy
+     * @dev Borrows assets (not shares) - Morpho converts to shares internally
      */
     function _borrow(address asset, uint256 amount) internal override {
         if (asset != debtAsset) revert InvalidToken();
         if (amount == 0) revert InvalidAmount();
 
-        pool.borrow(
-            asset,
-            amount,
-            INTEREST_RATE_MODE,
-            REFERRAL_CODE,
-            address(this)
+        MarketParams memory params = morpho.idToMarketParams(marketId);
+        morpho.borrow(
+            params,
+            amount,      // assets to borrow
+            0,           // shares = 0 (use assets instead)
+            address(this), // onBehalf
+            address(this)  // receiver
         );
     }
 
     /**
-     * @notice Repay debt to Aave
+     * @notice Repay debt to Morpho Blue
      * @inheritdoc LeveragedStrategy
+     * @dev Repays assets (not shares) - Morpho converts to shares internally
      */
     function _repay(address asset, uint256 amount)
         internal
@@ -168,12 +182,15 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
         if (asset != debtAsset) revert InvalidToken();
         if (amount == 0) revert InvalidAmount();
 
-        _approveIfNeeded(asset, address(pool), amount);
-        actualRepaid = pool.repay(
-            asset,
-            amount,
-            INTEREST_RATE_MODE,
-            address(this)
+        MarketParams memory params = morpho.idToMarketParams(marketId);
+        _approveIfNeeded(asset, address(morpho), amount);
+
+        (actualRepaid, ) = morpho.repay(
+            params,
+            amount,      // assets to repay
+            0,           // shares = 0 (use assets instead)
+            address(this), // onBehalf
+            ""           // data
         );
     }
 
@@ -194,33 +211,47 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
     }
 
     /**
-     * @notice Get position amounts from Aave (collateral and debt)
+     * @notice Get position amounts from Morpho Blue (collateral and debt)
      * @inheritdoc LeveragedStrategy
-     * @dev Makes two external calls to PoolDataProvider - one for each asset.
-     *      This is more gas-efficient than the alternative of calling getUserAccountData
-     *      which returns aggregated data in base currency that would need conversion.
+     * @dev Makes a single call to position() which returns both collateral and borrowShares.
+     *      Then converts borrowShares to assets using market data.
+     *
+     *      This matches the TypeScript logic in morpho.ts:
+     *      - totalDebt = pos.borrowShares * totalBorrowAssets / market.totalBorrowShares
      */
     function _getPositionAmounts() internal view override returns (uint256 collateralAmount, uint256 debtAmount) {
-        IPoolDataProvider dataProvider = _getDataProvider();
+        Position memory pos = morpho.position(marketId, address(this));
+        collateralAmount = pos.collateral;
 
-        // Get collateral (aToken balance) from collateralAsset reserve
-        (collateralAmount, , , , , , , , ) = dataProvider
-            .getUserReserveData(collateralAsset, address(this));
-
-        // Get debt from debtAsset reserve (separate call needed if different assets)
-        (, , debtAmount, , , , , , ) = dataProvider
-            .getUserReserveData(debtAsset, address(this));
+        // Convert borrow shares to assets
+        if (pos.borrowShares > 0) {
+            Market memory market = morpho.market(marketId);
+            if (market.totalBorrowShares > 0) {
+                // debtAmount = borrowShares * totalBorrowAssets / totalBorrowShares
+                debtAmount = (uint256(pos.borrowShares) * uint256(market.totalBorrowAssets))
+                    / uint256(market.totalBorrowShares);
+            } else {
+                debtAmount = 0;
+            }
+        } else {
+            debtAmount = 0;
+        }
     }
 
     /**
-     * @notice Calculate safe withdrawal amounts for Aave considering health factor
+     * @notice Calculate safe withdrawal amounts for Morpho considering health factor
      * @inheritdoc LeveragedStrategy
-     * @dev Aave-specific implementation that matches TypeScript logic:
-     *      - Debt: (totalDebt * (percentage + 1)) / DENOMINATOR
+     * @dev Morpho-specific implementation that matches TypeScript logic from morpho.ts:
+     *      - Debt to repay (assets): (totalDebt * (percentage + 1)) / DENOMINATOR
+     *      - Debt shares to repay: (borrowShares * percentage) / DENOMINATOR
      *      - Collateral: (totalCollateral * percentage) / DENOMINATOR
      *
-     *      The +1 on debt means we repay slightly more (1/DENOMINATOR = 1/1e18 extra)
+     *      The +1 on debt assets means we repay slightly more (1/DENOMINATOR = 1/1e18 extra)
      *      to ensure the position remains safe after withdrawal.
+     *
+     *      Note: We only return the asset amounts here. The share calculation would be:
+     *      debtSharesToRepay = borrowShares * percentage / DENOMINATOR
+     *      But since we use assets in _repay(), Morpho handles the conversion internally.
      */
     function _calculateSafeWithdrawAmounts(
         uint256 collateralAmount,
@@ -238,16 +269,6 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
     }
 
     // ============ Internal Helpers ============
-
-    /**
-     * @notice Get PoolDataProvider from Pool's AddressesProvider
-     * @dev Reads dynamically from the pool's addresses provider
-     */
-    function _getDataProvider() internal view returns (IPoolDataProvider) {
-        IPoolAddressesProvider addressesProvider = pool.ADDRESSES_PROVIDER();
-        address dataProviderAddress = addressesProvider.getPoolDataProvider();
-        return IPoolDataProvider(dataProviderAddress);
-    }
 
     /**
      * @notice Approve exact token amount for spending

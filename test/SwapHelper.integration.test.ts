@@ -57,7 +57,8 @@ describe("SwapHelper Integration Tests", function () {
 
     // Deploy MockSwapHelper
     const MockSwapHelperFactory = await ethers.getContractFactory("MockSwapHelper");
-    swapHelper = await MockSwapHelperFactory.deploy(await priceOracle.getAddress());
+    swapHelper = await MockSwapHelperFactory.deploy();
+    await swapHelper.initialize(await priceOracle.getAddress());
 
     // Deploy MockSwapRouter
     const MockSwapRouterFactory = await ethers.getContractFactory("MockSwapRouter");

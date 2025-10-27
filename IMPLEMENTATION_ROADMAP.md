@@ -74,7 +74,7 @@
 
 ---
 
-## Phase 2: Child Strategies (Inheritance-Based) ✅
+## Phase 2: Child Strategies (Inheritance-Based) 🟡
 
 ### 2.1 Base Leveraged Strategy ✅
 **Dependencies:** 1.2 (SwapHelper completed)
@@ -152,27 +152,40 @@
 - TR-003: Child strategy interface
 - ADR-0008: LeveragedStrategy Architecture
 
-### 2.3 Morpho Leveraged Strategy ⚪
+### 2.3 Morpho Leveraged Strategy ✅
 **Dependencies:** 2.1
 
 #### 2.3.1 Morpho Strategy Implementation
-- [ ] Create `MorphoLeveragedStrategy.sol`
-  - [ ] Inherit LeveragedStrategy
-  - [ ] Implement `_supply()` - Morpho.supplyCollateral()
-  - [ ] Implement `_withdraw()` - Morpho.withdrawCollateral()
-  - [ ] Implement `_borrow()` - Morpho.borrow()
-  - [ ] Implement `_repay()` - Morpho.repay()
-  - [ ] Implement `_getCollateralAsset()` / `_getCollateralAmount()` - query Morpho position
-  - [ ] Implement `_getDebtAsset()` / `_getDebtAmount()` - query Morpho position
-  - [ ] Market params handling
-- [ ] Strategy-specific state
-  - [ ] Morpho contract address
-  - [ ] Market parameters
+- [x] Create `MorphoLeveragedStrategy.sol`
+  - [x] Inherit LeveragedStrategy
+  - [x] Implement `_supply()` - Morpho.supplyCollateral()
+  - [x] Implement `_withdraw()` - Morpho.withdrawCollateral()
+  - [x] Implement `_borrow()` - Morpho.borrow()
+  - [x] Implement `_repay()` - Morpho.repay()
+  - [x] Implement `_getCollateralAsset()` / `_getDebtAsset()` - single asset accessors
+  - [x] Implement `_getPositionAmounts()` - query Morpho position with share-to-asset conversion
+  - [x] Implement `_calculateSafeWithdrawAmounts()` - Morpho-specific health factor logic
+  - [x] Market ID-based market identification
+  - [x] Share-based debt accounting (similar to Aave V3)
+- [x] Strategy-specific state
+  - [x] Morpho Blue contract address (immutable)
+  - [x] Market ID (immutable)
+  - [x] Collateral asset address (immutable, extracted from market params)
+  - [x] Debt asset address (immutable, extracted from market params)
+  - [x] On-demand approval system (_approveIfNeeded)
 
 #### 2.3.2 Morpho Strategy Testing
-- [ ] Similar test suite to Aave strategy
-- [ ] Morpho-specific edge cases
-- [ ] Fork tests (Morpho mainnet fork)
+- [x] Unit tests (17 tests, all passing)
+  - [x] All abstract method implementations
+  - [x] Command sequence execution
+  - [x] Leverage mechanics
+  - [x] Position querying with share-to-asset conversion
+  - [x] Share-based debt accounting
+- [x] Mock-based integration tests
+  - [x] Full deposit cycle (with leverage)
+  - [x] Full withdrawal cycle (deleverage)
+  - [x] Edge cases validation
+- [ ] Fork tests (Morpho mainnet fork) - Deferred
 
 **Related Requirements:**
 - FR-002.1: Multi-protocol support
@@ -689,7 +702,7 @@
 4. ✅ **IChildStrategy Interface** (Completed - Phase 2.1.1)
 5. ✅ **LeveragedStrategy Base** (Completed - Phase 2.1.2)
 6. ✅ **AaveLeveragedStrategy** (Completed - Phase 2.2)
-7. **MorphoLeveragedStrategy** (Phase 2.3 - Next up)
+7. ✅ **MorphoLeveragedStrategy** (Completed - Phase 2.3)
 8. **ParentVault Core** (Phase 3.1)
 9. **Deposit Flow** (Phase 3.2)
 10. **Withdrawal Flow** (Phase 3.3)
@@ -736,6 +749,14 @@
 
 ## Recent Updates
 
+### 2025-01-27: Morpho Blue Strategy Completed
+- **Completed MorphoLeveragedStrategy**: Full implementation with share-based debt accounting
+- **Market ID-based identification**: Uses Morpho Blue's market ID system
+- **Share-to-asset conversion**: Proper handling of borrow shares to assets conversion
+- **Comprehensive tests**: 17 unit tests covering all functionality
+- **MockMorpho contract**: Created for testing without mainnet fork
+- **Updated initializer pattern**: Modified base contracts to support both direct deployment and upgradeable proxy pattern
+
 ### 2025-01-24: Architecture Changes - Manual Strategy Management
 - **Removed automatic weight-based allocation**: Parent vault no longer enforces target weights or automatic distribution
 - **Manual strategy selection**: Manager explicitly selects which child strategy for each deposit/withdrawal
@@ -749,10 +770,10 @@
 
 ### Progress Summary
 - **Phase 1: Core Infrastructure** ✅ - Fully completed
-- **Phase 2: Child Strategies** ✅ - Aave implementation completed, Morpho next
+- **Phase 2: Child Strategies** 🟡 - Aave and Morpho completed, Euler remaining (optional)
 - **Phase 3: Parent Vault** 🔴 - Not started
-- **Next milestone**: Morpho strategy implementation, then ParentVault core
+- **Next milestone**: ParentVault core implementation (Phase 3.1)
 
 This roadmap should be updated as implementation progresses.
 
-**Last Updated:** 2025-01-24
+**Last Updated:** 2025-01-27

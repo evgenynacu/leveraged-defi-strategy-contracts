@@ -6,7 +6,8 @@ import "../strategies/LeveragedStrategy.sol";
 /**
  * @title MockLeveragedStrategy
  * @notice Mock implementation of LeveragedStrategy for testing
- * @dev Simulates lending protocol operations with simple storage
+ * @dev Simulates lending protocol operations with simple storage.
+ *      For testing: uses initializer pattern to be compatible with upgradeable base contracts.
  */
 contract MockLeveragedStrategy is LeveragedStrategy {
     // Mock lending protocol state
@@ -21,11 +22,30 @@ contract MockLeveragedStrategy is LeveragedStrategy {
     bool public shouldFailBorrow;
     bool public shouldFailRepay;
 
-    constructor(
+    /**
+     * @notice Constructor - disables initializers for implementation contract
+     * @dev For testing without proxy, this is commented out to allow direct initialization.
+     */
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Uncomment for production proxy deployment:
+        // _disableInitializers();
+    }
+
+    /**
+     * @notice Initialize mock strategy
+     * @dev This function replaces the constructor for testing upgradeable patterns.
+     * @param _parent Parent vault address
+     * @param _baseAsset Base asset address
+     * @param _priceOracle Price oracle address
+     */
+    function initialize(
         address _parent,
         address _baseAsset,
         address _priceOracle
-    ) LeveragedStrategy(_parent, _baseAsset, _priceOracle) {}
+    ) external initializer {
+        __LeveragedStrategy_init(_parent, _baseAsset, _priceOracle);
+    }
 
     // ============ Mock Protocol Operations ============
 

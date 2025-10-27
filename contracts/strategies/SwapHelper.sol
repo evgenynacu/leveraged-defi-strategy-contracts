@@ -11,10 +11,17 @@ import "../interfaces/IOracleConsumer.sol";
  * @title SwapHelper
  * @notice Base contract providing secure token swap functionality for child strategies
  * @dev Implements best practices for swap security:
- *      - Precise approvals (exact amount needed, not max)
- *      - Approval cleanup after swap
+ *      - Precise approvals (exact amount needed, never type(uint256).max)
+ *      - Approval cleanup after swap (reset to zero)
  *      - Oracle-based slippage protection
  *      - Comprehensive event logging for audit trail
+ *
+ * Token Approval Policy (SR-010.2):
+ * This contract strictly follows the precise approval pattern to minimize risk:
+ * - Always approve exact amount needed: safeIncreaseAllowance(spender, exactAmount)
+ * - Never use unlimited approvals: type(uint256).max is prohibited
+ * - Always cleanup approvals after operations: safeDecreaseAllowance(spender, remaining)
+ * - Rationale: Limits exposure if external router contract is compromised
  *
  * IMPORTANT: Reentrancy Protection
  * This contract does NOT include reentrancy guards. Callers MUST ensure reentrancy
