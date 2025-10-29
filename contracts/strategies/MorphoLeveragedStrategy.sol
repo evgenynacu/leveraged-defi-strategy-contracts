@@ -237,34 +237,4 @@ contract MorphoLeveragedStrategy is LeveragedStrategy {
             debtAmount = 0;
         }
     }
-
-    /**
-     * @notice Calculate safe withdrawal amounts for Morpho considering health factor
-     * @inheritdoc LeveragedStrategy
-     * @dev Morpho-specific implementation that matches TypeScript logic from morpho.ts:
-     *      - Debt to repay (assets): (totalDebt * (percentage + 1)) / DENOMINATOR
-     *      - Debt shares to repay: (borrowShares * percentage) / DENOMINATOR
-     *      - Collateral: (totalCollateral * percentage) / DENOMINATOR
-     *
-     *      The +1 on debt assets means we repay slightly more (1/DENOMINATOR = 1/1e18 extra)
-     *      to ensure the position remains safe after withdrawal.
-     *
-     *      Note: We only return the asset amounts here. The share calculation would be:
-     *      debtSharesToRepay = borrowShares * percentage / DENOMINATOR
-     *      But since we use assets in _repay(), Morpho handles the conversion internally.
-     */
-    function _calculateSafeWithdrawAmounts(
-        uint256 collateralAmount,
-        uint256 debtAmount,
-        uint256 percentage
-    ) internal view override returns (uint256 repayAmount, uint256 withdrawAmount) {
-        // Collateral: simple proportional withdrawal
-        // Matches: totalCollateral * floor(collateralShare * multiplier) / multiplier
-        withdrawAmount = (collateralAmount * percentage) / PERCENTAGE_DENOMINATOR;
-
-        // Debt: add +1 to percentage before division to repay slightly more
-        // Matches: totalDebt * floor(debtShare * multiplier + 1) / multiplier
-        // This adds 1/PERCENTAGE_DENOMINATOR (1/1e18) extra to the debt repayment
-        repayAmount = (debtAmount * (percentage + 1)) / PERCENTAGE_DENOMINATOR;
-    }
 }

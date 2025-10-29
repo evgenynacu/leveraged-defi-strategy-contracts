@@ -238,33 +238,4 @@ contract EulerLeveragedStrategy is LeveragedStrategy {
         // Get debt amount (already in asset terms)
         debtAmount = IEVault(debtVault).debtOf(address(this));
     }
-
-    /**
-     * @notice Calculate safe withdrawal amounts for Euler considering health factor
-     * @inheritdoc LeveragedStrategy
-     * @dev Euler-specific implementation that matches TypeScript logic from euler.ts:
-     *      - Debt to repay: (totalDebt * (percentage + 1)) / DENOMINATOR
-     *      - Collateral: (totalCollateral * percentage) / DENOMINATOR
-     *
-     *      The +1 on debt means we repay slightly more (1/DENOMINATOR = 1/1e18 extra)
-     *      to ensure the position remains safe after withdrawal.
-     *
-     *      Note: percentage must be <= PERCENTAGE_DENOMINATOR (1e18)
-     */
-    function _calculateSafeWithdrawAmounts(
-        uint256 collateralAmount,
-        uint256 debtAmount,
-        uint256 percentage
-    ) internal view override returns (uint256 repayAmount, uint256 withdrawAmount) {
-        if (percentage > PERCENTAGE_DENOMINATOR) revert InvalidAmount();
-
-        // Collateral: simple proportional withdrawal
-        // Matches: totalCollateral * floor(collateralShare * multiplier) / multiplier
-        withdrawAmount = (collateralAmount * percentage) / PERCENTAGE_DENOMINATOR;
-
-        // Debt: add +1 to percentage before division to repay slightly more
-        // Matches: totalDebt * floor(debtShare * multiplier + 1) / multiplier
-        // This adds 1/PERCENTAGE_DENOMINATOR (1/1e18) extra to the debt repayment
-        repayAmount = (debtAmount * (percentage + 1)) / PERCENTAGE_DENOMINATOR;
-    }
 }

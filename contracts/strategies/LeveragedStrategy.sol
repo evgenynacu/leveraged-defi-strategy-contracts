@@ -453,8 +453,9 @@ abstract contract LeveragedStrategy is Initializable, SwapHelper, IChildStrategy
 
     /**
      * @notice Execute protocol-level withdraw operations
-     * @dev Calculates safe withdrawal amounts considering health factor and LTV.
-     *      Strategy may need to repay more debt than proportional to safely withdraw collateral.
+     * @dev Calculates proportional withdrawal amounts based on percentage.
+     *      Backend is responsible for providing sufficient flash loan buffer
+     *      to handle interest accrual and rounding errors during transaction execution.
      */
     function _executeProtocolWithdraw(uint256 percentage) private {
         address collateralAsset = _getCollateralAsset();
@@ -464,7 +465,7 @@ abstract contract LeveragedStrategy is Initializable, SwapHelper, IChildStrategy
         (uint256 collateralAmount, uint256 debtAmount) = _getPositionAmounts();
 
         // Calculate safe withdrawal amounts (may adjust debt repayment upward)
-        (uint256 repayAmount, uint256 withdrawAmount) = _calculateSafeWithdrawAmounts(
+        (uint256 repayAmount, uint256 withdrawAmount) = _calculateWithdrawAmounts(
             collateralAmount,
             debtAmount,
             percentage
@@ -734,30 +735,32 @@ abstract contract LeveragedStrategy is Initializable, SwapHelper, IChildStrategy
     function _getPositionAmounts() internal view virtual returns (uint256 collateralAmount, uint256 debtAmount);
 
     /**
-     * @notice Calculate safe withdrawal amounts considering protocol constraints
-     * @dev Default implementation adds small buffer to debt repayment:
-     *      - Debt: (totalDebt * (percentage + 1)) / DENOMINATOR
-     *      - Collateral: (totalCollateral * percentage) / DENOMINATOR
+     * @notice Calculate withdrawal amounts considering protocol constraints
+     * @dev Default implementation performs proportional withdrawal:
+     *      - Withdraws exactly (collateral * percentage)
+     *      - Repays exactly (debt * percentage)
      *
-     *      The +1 adds 1/1e18 extra to debt repayment to maintain safe health factor.
-     *      Child strategies can override for protocol-specific logic.
+     *      Backend is responsible for providing sufficient flash loan buffer
+     *      to handle interest accrual and rounding errors during transaction execution.
+     *
+     *      Child strategies can override to implement protocol-specific logic if needed.
      *
      * @param collateralAmount Total collateral in protocol
      * @param debtAmount Total debt in protocol
      * @param percentage Percentage to withdraw (1e18 = 100%)
-     * @return repayAmount Amount of debt to repay (slightly > proportional for safety)
+     * @return repayAmount Amount of debt to repay
      * @return withdrawAmount Amount of collateral to withdraw
      */
-    function _calculateSafeWithdrawAmounts(
+    function _calculateWithdrawAmounts(
         uint256 collateralAmount,
         uint256 debtAmount,
         uint256 percentage
     ) internal view virtual returns (uint256 repayAmount, uint256 withdrawAmount) {
-        // Collateral: simple proportional withdrawal
-        withdrawAmount = (collateralAmount * percentage) / PERCENTAGE_DENOMINATOR;
+        if (percentage == 0 || percentage > PERCENTAGE_DENOMINATOR) {
+            revert InvalidPercentage();
+        }
 
-        // Debt: add +1 to percentage to repay slightly more (1/1e18 extra)
-        // This ensures health factor remains safe after withdrawal
-        repayAmount = (debtAmount * (percentage + 1)) / PERCENTAGE_DENOMINATOR;
+        withdrawAmount = (collateralAmount * percentage) / PERCENTAGE_DENOMINATOR;
+        repayAmount = (debtAmount * percentage) / PERCENTAGE_DENOMINATOR;
     }
 }
