@@ -661,7 +661,7 @@ abstract contract LeveragedStrategy is Initializable, SwapHelper, IChildStrategy
     /**
      * @notice Withdraw collateral from lending protocol
      * @param asset Asset address to withdraw
-     * @param amount Amount to withdraw (type(uint256).max for full amount)
+     * @param amount Amount to withdraw
      * @return actualWithdrawn Actual amount withdrawn
      */
     function _withdraw(address asset, uint256 amount)
@@ -679,7 +679,7 @@ abstract contract LeveragedStrategy is Initializable, SwapHelper, IChildStrategy
     /**
      * @notice Repay debt to lending protocol
      * @param asset Asset address to repay
-     * @param amount Amount to repay (type(uint256).max for full debt)
+     * @param amount Amount to repay
      * @return actualRepaid Actual amount repaid
      */
     function _repay(address asset, uint256 amount)
