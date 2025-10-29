@@ -248,27 +248,4 @@ contract AaveLeveragedStrategy is LeveragedStrategy {
         address dataProviderAddress = addressesProvider.getPoolDataProvider();
         return IPoolDataProvider(dataProviderAddress);
     }
-
-    /**
-     * @notice Approve exact token amount for spending
-     * @dev Implements precise approval policy (SR-010.2):
-     *      - Approves only the exact amount needed, never type(uint256).max
-     *      - Resets approval to zero first if there's existing allowance
-     *      - Minimizes risk exposure if external protocol is compromised
-     *
-     * @param token Token to approve
-     * @param spender Spender to approve
-     * @param amount Exact amount to approve
-     */
-    function _approveIfNeeded(address token, address spender, uint256 amount) internal {
-        uint256 currentAllowance = IERC20(token).allowance(address(this), spender);
-        if (currentAllowance < amount) {
-            // Reset to zero first if there's existing allowance (some tokens require this)
-            if (currentAllowance > 0) {
-                IERC20(token).forceApprove(spender, 0);
-            }
-            // Approve exact amount needed
-            IERC20(token).forceApprove(spender, amount);
-        }
-    }
 }
