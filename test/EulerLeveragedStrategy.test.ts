@@ -324,9 +324,6 @@ describe("EulerLeveragedStrategy", function () {
         data
       );
 
-      const collateral = await collateralVault.convertToAssets(
-        await collateralVault.balanceOf(await strategy.getAddress())
-      );
       const debtBefore = await debtVault.debtOf(await strategy.getAddress());
 
       // Withdraw 50%
