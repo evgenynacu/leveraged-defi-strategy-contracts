@@ -8,15 +8,14 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 ### FR-001.1: Deposit Flow
 - Users must be able to deposit in base tokens (USDC, USDT)
 - System must support batch deposits through epoch system
-- Deposits must be processed atomically - either all succeed or all revert
-- Users must receive slippage protection through `minSharesOut`
+- Users must be protected from receiving fewer shares than expected due to unfavorable execution
 - Users must be able to cancel pending deposits before epoch processing
 
 ### FR-001.2: Withdrawal Flow
 - Users must be able to request withdrawals by share amount
 - System must support batch withdrawals through epoch system
 - Withdrawals must be proportional - each user receives exact fraction of all assets
-- Users must receive slippage protection through `minAssetsOut`
+- Users must be protected from receiving fewer assets than expected due to unfavorable execution
 - System must support partial fills when liquidity is insufficient
 - Users must be able to cancel pending withdrawals before epoch processing
 
@@ -57,8 +56,6 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 ### FR-003.1: Command System
 - Child strategies must support flexible command-based execution for complex operations
 - Child strategy commands must include: SUPPLY, WITHDRAW, BORROW, REPAY, SWAP
-- Flash loan operations are managed by parent vault, NOT by child strategy commands
-- Transfer operations must NOT be allowed in commands - only vault logic can transfer assets
 - Commands must be composable for complex strategies
 
 ### FR-003.2: Safety and Validation
@@ -70,10 +67,9 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 ## FR-004: Flash Loan Management
 
 ### FR-004.1: Flash Loan Coordination
-- Parent vault must manage all flash loans for operation coordination
-- System must support single flash loan for multiple children (efficiency)
+- System must coordinate borrowed capital across multiple strategies within single transaction
 - System must support atomic coordination across deposit/withdraw/rebalance operations
-- Primary provider: Morpho (zero fee flash loans)
+- Flash loan costs must be minimized to maximize net user returns
 
 ### FR-004.2: Operation Types
 - System must support DEPOSIT operations (user deposits to children)
@@ -88,13 +84,9 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 - System must support optimal flash loan currency selection
 - System must minimize slippage through reduced token swaps
 
-### FR-005.2: Flash Loan Token Pattern
-- Parent must use single flash loan token per transaction for netFlow tracking
-- Parent must specify providedAmount (what it gives to child) and expectedAmount (what child returns)
-- Both amounts use the same flashLoanToken (unified token per transaction)
-- Child strategies must approve expectedAmount of flashLoanToken for parent collection
-- System must validate netFlow == 0 at transaction end (flash loan fully repaid)
-- Pattern enables multi-child flash loan coordination (child A receives, child B returns)
+### FR-005.2: Flash Loan Repayment
+- System must ensure all borrowed capital is repaid within the same transaction
+- System must support scenarios where borrowed funds flow through multiple strategies before repayment
 
 ## FR-006: Child Strategy Types
 

@@ -124,7 +124,6 @@ struct Command {
 
 ### TR-004.3: Invariants
 After executing any command sequence:
-- All borrowed flash loan funds must be repaid
 - All intermediate tokens must be converted to strategy assets
 - No tokens should be sent to external addresses
 - Vault's position must be internally consistent (collateral/debt ratios valid)
@@ -167,11 +166,8 @@ enum OperationType {
 
 ## TR-007: Error Handling and Atomicity
 
-### TR-007.1: Atomic Execution
-- All operations in `processDeposits()` must be atomic
-- If any child deposit/withdrawal fails → entire epoch reverts
-- No partial state changes allowed
-- Keeper can retry with adjusted parameters
+### TR-007.1: Failed Execution Handling
+- Keeper can retry failed operations with adjusted parameters
 
 ### TR-007.2: Idempotency
 - Safe re-runs on transaction failure

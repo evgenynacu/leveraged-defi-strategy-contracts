@@ -25,7 +25,6 @@ Security requirements for the leveraged DeFi strategy system covering access con
 ### SR-002.1: NAV Preservation
 - NAV must not significantly decrease after operations (only gas/slippage tolerance)
 - NAV decrease threshold: maximum 1% (99% of previous NAV)
-- All borrowed flash loan funds must be repaid in same transaction
 - Manager responsible for maintaining desired portfolio allocations
 
 ### SR-002.2: Asset Protection
@@ -44,7 +43,6 @@ Security requirements for the leveraged DeFi strategy system covering access con
 ## SR-003: Flash Loan Security
 
 ### SR-003.1: Flash Loan Constraints
-- Flash loans must be repaid within same transaction
 - Flash loan amount must not exceed available liquidity
 - Flash loan callbacks must validate operation type and data integrity
 - No nested flash loans from different providers
@@ -65,7 +63,7 @@ Security requirements for the leveraged DeFi strategy system covering access con
 
 ### SR-004.2: Command Execution Safety
 - Each command must have clear safety guarantees
-- Atomic execution: all commands succeed or fail together
+- Command sequences must be validated to ensure safe final state even if individual commands fail
 - Limited type safety: bytes encoding requires thorough validation
 - Gas overhead must be reasonable and predictable
 
