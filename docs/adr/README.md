@@ -154,6 +154,7 @@ When an ADR becomes outdated:
 - [ADR-0007: Reentrancy Protection Strategy](0007-reentrancy-protection-strategy.md)
 - [ADR-0008: LeveragedStrategy Architecture](0008-leveraged-strategy-architecture.md)
 - [ADR-0009: Selective Withdrawal with Tolerance-Based Validation](0009-selective-withdrawal-validation.md)
+- [ADR-0010: Stop-Loss Mechanism](0010-stop-loss-mechanism.md)
 
 ## Pending Decisions
 

@@ -55,17 +55,17 @@ Once strategy is selected, keeper must calculate optimal execution:
 
 ## OR-003: Keeper Automation Responsibilities
 
-### OR-003.1: Stop-Loss Monitoring and Execution
-Keeper must continuously monitor strategy performance and execute protective measures:
-- **NAV Monitoring**: Track strategy NAV changes in real-time to detect drawdowns
-- **Stop-Loss Thresholds**: Monitor configured stop-loss levels per strategy (specific values determined per strategy)
-- **Automatic Deleveraging**: When stop-loss is triggered:
-  - Calculate optimal deleveraging path to reduce risk exposure
-  - Execute withdrawal operations to reduce position size or exit completely
-  - Use flash loans to unwind leveraged positions efficiently
-  - Convert volatile assets to stable assets if configured
-- **Graduated Response**: Implement partial deleveraging for moderate losses, full exit for severe losses
-- **Notification**: Alert manager when stop-loss actions are executed
+### OR-003.1: Stop-Loss Protection
+System must protect user capital from significant losses due to asset depegs, market crashes, or protocol failures.
+
+#### Requirements
+1. **Threat Detection**: Automatically detect conditions that threaten user capital (asset depegs, excessive drawdowns, protocol failures)
+2. **Accuracy**: Distinguish between normal market volatility and genuine threats to minimize false positives
+3. **Rapid Response**: Enable fast protective action to limit losses when genuine threats are confirmed
+4. **Controlled Execution**: Require authorization before executing emergency actions that bypass normal safety checks
+5. **Transparency**: Maintain complete audit trail and notify manager of all protective actions
+
+See [ADR-0010: Stop-Loss Mechanism](../adr/0010-stop-loss-mechanism.md) for implementation approach.
 
 ### OR-003.2: Take-Profit Monitoring and Execution
 Keeper must monitor profit targets and execute profit-taking operations:
