@@ -24,7 +24,6 @@ Performance requirements for the leveraged DeFi strategy system including gas op
 
 ### PR-003.2: User Scaling
 - Deposit/withdrawal processing gas costs must scale sub-linearly with number of users per epoch
-- System must handle at least 100 users per epoch without performance degradation
 
 ## PR-004: Liquidity Management
 

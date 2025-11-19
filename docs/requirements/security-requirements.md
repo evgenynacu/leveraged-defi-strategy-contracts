@@ -7,8 +7,8 @@ Security requirements for the leveraged DeFi strategy system covering access con
 
 ### SR-001.1: Role-Based Permissions
 - Only parent vault can call child strategy operations
-- Only authorized keepers can call epoch processing functions (`processDeposits`, `processWithdrawals`, `rebalance`)
-- Only authorized governance can perform contract upgrades
+- Only authorized keepers can call processing functions (`processDeposits`, `processWithdrawals`, `rebalance`)
+- Only authorized role can perform contract upgrades (first - manager, later - governance)
 - Child strategies must enforce single-owner constraint (only parent can call)
 
 ### SR-001.2: Keeper Authorization
@@ -24,12 +24,12 @@ Security requirements for the leveraged DeFi strategy system covering access con
 
 ### SR-002.1: NAV Preservation
 - NAV must not significantly decrease after operations (only gas/slippage tolerance)
-- NAV decrease threshold: maximum 1% (99% of previous NAV)
+- NAV decrease threshold should be configurable by manager (in future - governance)
 - Manager responsible for maintaining desired portfolio allocations
 
 ### SR-002.2: Asset Protection
 - All intermediate tokens must be converted to strategy assets
-- No tokens should be sent to external addresses (except authorized transfers)
+- No tokens should be sent to external addresses
 - Vault's position must remain internally consistent (collateral/debt ratios valid)
 - Assets must remain within vault contracts during command execution
 
@@ -77,7 +77,7 @@ Security requirements for the leveraged DeFi strategy system covering access con
 
 ### SR-005.2: Price Validation
 - Validate oracle prices against reasonable bounds
-- Implement price deviation checks between different oracle sources
+- Implement price deviation checks between different oracle sources and on-chain execution prices
 - Handle oracle failures gracefully (circuit breakers)
 - Prevent oracle-based arbitrage at entry/exit
 
@@ -86,8 +86,8 @@ Security requirements for the leveraged DeFi strategy system covering access con
 ### SR-006.1: Upgrade Constraints
 - Storage layout must be preserved (append-only)
 - Proxy contracts must remain immutable
-- Upgrade timelock must be enforced
-- Upgrade governance must be multi-signature or DAO-based
+- Upgrade timelock must be enforced (in v1 is not required, can be added later with bigger TVL)
+- Upgrade governance must be multi-signature or DAO-based (in v1 is not required, can be added later with bigger TVL)
 
 ### SR-006.2: Upgrade Validation
 - Comprehensive testing before upgrade deployment

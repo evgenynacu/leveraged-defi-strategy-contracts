@@ -38,7 +38,7 @@ System must protect user capital from significant losses due to asset depegs, ma
 1. **Threat Detection**: Automatically detect conditions that threaten user capital (asset depegs, excessive drawdowns, protocol failures)
 2. **Accuracy**: Distinguish between normal market volatility and genuine threats to minimize false positives
 3. **Rapid Response**: Enable fast protective action to limit losses when genuine threats are confirmed
-4. **Controlled Execution**: Require authorization before executing emergency actions that bypass normal safety checks
+4. **Controlled Execution**: Require authorization before executing emergency actions that bypass normal safety checks (for example, stop-loss execution can be blocked because oracles can have delayed value)
 5. **Transparency**: Maintain complete audit trail and notify manager of all protective actions
 
 ### OR-003.2: Take-Profit Automation
@@ -46,7 +46,7 @@ System must protect user capital from significant losses due to asset depegs, ma
 - System must support configurable profit handling (hold, redeploy, or distribute)
 
 ### OR-003.3: Delayed Operations
-- System must queue operations that cannot execute immediately due to external protocol constraints
+- System must queue operations that cannot execute immediately due to external protocol constraints (for example, some protocols can have limits which do not allow adding more collateral to the protocol)
 - System must execute queued operations when constraints are lifted
 - Manager must be able to modify or cancel queued operations
 

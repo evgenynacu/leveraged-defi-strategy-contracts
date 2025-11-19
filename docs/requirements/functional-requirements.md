@@ -7,17 +7,16 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 
 ### FR-001.1: Deposit Flow
 - Users must be able to deposit in base tokens (USDC, USDT)
-- System must support batch deposits through epoch system
 - Users must be protected from receiving fewer shares than expected due to unfavorable execution
-- Users must be able to cancel pending deposits before epoch processing
+- Users must be able to cancel pending deposits before processing
 
 ### FR-001.2: Withdrawal Flow
 - Users must be able to request withdrawals by share amount
-- System must support batch withdrawals through epoch system
 - Withdrawals must be proportional - each user receives exact fraction of all assets
+  - When this is not possible due to technical reasons (too expensive/big tx or other reasons) - provide a way to withdraw funds based on the provided NAV calculation
 - Users must be protected from receiving fewer assets than expected due to unfavorable execution
 - System must support partial fills when liquidity is insufficient
-- Users must be able to cancel pending withdrawals before epoch processing
+- Users must be able to cancel pending withdrawals before processing
 
 ## FR-002: Multi-Strategy Support
 
@@ -63,7 +62,7 @@ Functional requirements for the leveraged DeFi strategy system with parent/child
 - System must support strategies that use borrowed capital to create leveraged positions in yield-bearing assets
 
 ### FR-006.2: Token Acquisition
-- Strategies must acquire yield-bearing tokens through available liquidity sources
+- Strategies must acquire yield-bearing tokens through available liquidity sources (DEXes or underlying protocols smart-contracts)
 - System must minimize slippage and transaction costs during token acquisition
 
 ### FR-006.3: Automated Risk Management
