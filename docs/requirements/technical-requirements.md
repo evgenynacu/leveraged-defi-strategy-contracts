@@ -6,19 +6,14 @@ Technical requirements for the leveraged DeFi strategy system including architec
 ## TR-001: Contract Architecture
 
 ### TR-001.1: Upgradeable Components
-- Parent vault logic must be upgradeable using OpenZeppelin transparent proxy pattern
+- Parent vault logic must be upgradeable to allow bug fixes and feature additions
 - Child vault logic must be upgradeable independently
-- Proxy contracts must be immutable
-- Storage layout must support append-only changes (cannot reorder or remove variables)
-- Implementation contracts must use initializer pattern instead of constructors
-- Implementation contracts must NOT use immutable variables (incompatible with proxy pattern)
-- Initialization must use `onlyInitializing` modifier to prevent re-initialization
+- Upgrades must preserve existing user data and contract state
+- Storage layout changes must be backward-compatible
 
 ### TR-001.2: Governance Structure
-- System must support flexible governance evolution
-- Initial deployment may use simple multisig
-- Migration to full on-chain governance must be possible without architecture changes
-- Upgrade authority and governance mechanisms to be implemented using OpenZeppelin Governor and TimelockController
+- System must support governance evolution over time
+- Migration to more decentralized governance must be possible without redeploying core contracts
 
 ## TR-002: NAV Calculation
 
@@ -30,174 +25,84 @@ Technical requirements for the leveraged DeFi strategy system including architec
   - Realizable rewards (only if realizable within current epoch)
 
 ### TR-002.2: Oracle Integration
-- PT tokens must use Pendle Oracle with period=0 for spot pricing
-- Yield-bearing assets must use external oracles
-- Stablecoins must use external oracles for depeg detection
-- Fixed-point math with 1e18 scale and explicit rounding rules
-- Deterministic snapshots: NAV_before and NAV_after within one transaction
+- All asset types must have reliable price sources for NAV calculation
+- Price calculations must use consistent precision to prevent value leakage
+- NAV snapshots must be deterministic within single transaction (before/after comparisons)
 
 ### TR-002.3: Entry and Exit Rules
-- Entry: shares minted from deltaNAV only (`shares = deltaNAV / pricePerShare`)
-- NAV_before excludes queued deposit assets (haven't entered strategies yet)
-- NAV_after includes newly deployed assets in child strategies
-- First deposit: `pricePerShare = 1e18` (1:1 ratio)
-- Exit: pay realized asset units proportionally, not by NAV estimate
+- Entry pricing must be based on value added to vault (delta NAV)
+- Exit must distribute actual assets proportionally to share ownership
 
 ## TR-003: Child Strategy Interface
 
 ### TR-003.1: Core Interface Requirements
-- Single caller restriction: only parent can call operations
-- Synchronous operations: no user queues, no internal epochs
+- Child strategies must be callable only by parent vault
+- Child strategies must execute operations synchronously without internal queuing
+- Child strategies must support deposit, withdrawal, and rebalancing operations
+- Child strategies must provide total asset valuation for NAV calculation
 - Multi-token support: accept any token for deposit/withdraw, not just base asset
 - No internal shares: parent owns all assets directly, no share minting in child
 
-### TR-003.2: Function Signatures
-```solidity
-interface IChildStrategy {
-    function deposit(
-        address depositToken, uint256 depositAmount,
-        address flashLoanToken, uint256 providedAmount, uint256 expectedAmount,
-        bytes calldata data
-    ) external;
-
-    function withdraw(
-        uint256 percentage,
-        address outputToken,
-        address flashLoanToken, uint256 providedAmount, uint256 expectedAmount,
-        bytes calldata data
-    ) external returns (uint256 actualWithdrawn);
-
-    function rebalance(
-        address flashLoanToken, uint256 providedAmount, uint256 expectedAmount,
-        bytes calldata data
-    ) external;
-
-    function totalAssets() external view returns (uint256);
-}
-```
-
-**Flash Loan Token Pattern:**
-- Single `flashLoanToken` per transaction (instead of separate provided/expected tokens)
-- `providedAmount`: what parent gives to child
-- `expectedAmount`: what child must return to parent
-- Both amounts use the same `flashLoanToken`
-- Parent tracks `netFlow` across all child operations
-- Transaction validates `netFlow == 0` at end (flash loan fully repaid)
-- Enables multi-child coordination (child A receives, child B returns)
-
-### TR-003.3: Proportional Exit Logic
-- Withdrawal operations must use fixed proportional logic
-- Calculate proportional amounts based on percentage parameter
-- Execute proportional unwind using provided liquidity
-- Approve parent to collect withdrawn assets and expected tokens
+### TR-003.2: Flash Loan Coordination
+- Child strategies must support receiving borrowed capital from parent
+- Child strategies must support returning borrowed capital to parent
+- System must enable coordination across multiple child strategies in single transaction
 
 ## TR-004: Command System Implementation
 
-### TR-004.1: Child Strategy Command Types
-Child strategies use command-based execution for protocol operations. Flash loans are managed by parent vault, NOT by child commands.
-
-```solidity
-// Child strategy commands (matches LeveragedStrategy.CommandType)
-enum CommandType {
-    SUPPLY,    // Supply collateral to lending protocol
-    WITHDRAW,  // Withdraw collateral from lending protocol
-    BORROW,    // Borrow asset from lending protocol
-    REPAY,     // Repay debt to lending protocol
-    SWAP       // Swap tokens via DEX
-}
-
-struct Command {
-    CommandType cmdType;
-    bytes data; // ABI-encoded arguments for this command
-}
-```
-
-**Note:** Flash loan operations are handled by parent vault at transaction level, not through child strategy commands.
+### TR-004.1: Command-Based Execution
+- Child strategies must support command-based execution for protocol operations
+- Must support lending protocol operations (collateral and debt management)
+- Must support token exchange operations
+- Flash loan coordination must be handled at parent vault level
 
 ### TR-004.2: Security Constraints
-- Transfer operation is NOT allowed in commands
-- All assets must remain within vault contracts
-- Transfers only executed by vault logic itself, never by keeper-provided commands
-- Command validation for known attack patterns
-- Reentrancy protection for command execution
-- Slippage limits and deadlines for all swaps
+- Commands must not allow direct token transfers out of vaults
+- All assets must remain within vault contracts during command execution
+- Commands must be validated against known attack patterns
+- Commands must include protection against reentrancy attacks
 
 ### TR-004.3: Invariants
-After executing any command sequence:
-- All intermediate tokens must be converted to strategy assets
-- No tokens should be sent to external addresses
-- Vault's position must be internally consistent (collateral/debt ratios valid)
+- All intermediate tokens must be converted to strategy assets after command execution
+- Vault position must remain internally consistent (valid collateral/debt ratios)
 
 ## TR-005: Rebalancing Architecture
 
-### TR-005.1: Unified Rebalancing System
-```solidity
-enum RebalanceOp { Withdraw, Deposit, Internal }
-struct RebalanceStep {
-    uint256 childIndex;
-    RebalanceOp operation;
-    bytes data;
-}
-```
+### TR-005.1: Rebalancing System
+- System must support unified rebalancing across all child strategies
+- Must support withdrawal, deposit, and internal rebalancing operations
+- Must allow step-based composition for complex rebalancing scenarios
 
-### TR-005.2: Rebalancing Function
-- Single `rebalance()` function handles all rebalancing operations
-- Step-based approach for flexible composition
-- Single flash loan for entire rebalance sequence
-- NAV invariant checks (NAV should not decrease significantly)
-- Weight invariant checks after rebalance completion
+### TR-005.2: Rebalancing Constraints
+- Rebalancing must preserve NAV (allowing only minimal decrease for gas/fees)
+- Rebalancing must support single borrowed capital transaction for efficiency
+- System must verify allocation weights after rebalancing completion
 
 ## TR-006: Flash Loan Implementation
 
-### TR-006.1: Flash Loan Provider
-- Primary provider: Morpho (zero fee flash loans)
-- Parent vault manages all flash loans
-- Single flash loan for complex operations across children
-- Support for different operation types through callback data
+### TR-006.1: Flash Loan Management
+- Parent vault must manage all flash loan operations
+- System must support zero-fee flash loan providers
+- Single flash loan must support complex operations across multiple children
+- Flash loans must support different operation types (deposits, withdrawals, rebalancing)
 
-### TR-006.2: Operation Types
-```solidity
-enum OperationType {
-    DEPOSIT,    // processDeposits - user deposits to children
-    WITHDRAW,   // processWithdrawals - user withdrawals from children
-    REBALANCE   // rebalance - move assets between children or optimize within single child
-}
-```
+## TR-007: State Management
 
-## TR-007: Error Handling and Atomicity
-
-### TR-007.1: Failed Execution Handling
-- Keeper can retry failed operations with adjusted parameters
-
-### TR-007.2: Idempotency
-- Safe re-runs on transaction failure
-- State should be consistent after failed transactions
-- Clear separation between pending and processed states
+### TR-007.1: State Separation
+- System must maintain clear separation between pending and processed states
 
 ## TR-008: Strategy Implementation Requirements
 
-### TR-008.1: Leveraged Yield-Token Strategy Architecture
-- Child strategies must implement leveraged yield-token acquisition pattern:
-  ```
-  1. Receive base token (USDC) + flash loan liquidity
-  2. Swap total amount to yield-bearing token using optimal DEX routing
-  3. Deposit yield token as collateral to lending protocol
-  4. Borrow base token against collateral (creating leverage)
-  5. Repay flash loan from borrowed amount
-  ```
-- Withdrawal must implement proportional deleveraging:
-  ```
-  1. Receive flash loan for debt repayment
-  2. Repay proportional amount of debt
-  3. Withdraw proportional collateral from lending protocol
-  4. Swap yield token to base token
-  5. Repay flash loan and return remaining to parent
-  ```
+### TR-008.1: Leveraged Yield-Token Strategy Pattern
+- Child strategies must support leveraged yield-token acquisition using borrowed capital
+- Must support swapping base tokens to yield-bearing tokens
+- Must support using yield tokens as collateral in lending protocols
+- Must support borrowing base tokens against collateral to create leverage
+- Deposits must support acquiring leveraged positions
+- Withdrawals must support proportional position deleveraging
 
 ### TR-008.2: Protocol Integration Requirements
-- **Pendle Integration**: Must support PT token trading through PendleRouter
-- **Odos Integration**: Must support swap execution through Odos API/contracts
-- **KyberSwap Integration**: Must support MetaAggregationRouter for optimal routing
-- **Aave Integration**: Must support supply/borrow/repay/withdraw through Pool interface
-- **Morpho Integration**: Must support supply/borrow/repay/withdraw through MorphoBlue interface
-- **Euler Integration**: Must support supply/borrow/repay/withdraw through EulerV2 interfaces (EVC and EVault)
+- Must support yield token trading through available DEX protocols
+- Must support token swap execution through aggregator protocols
+- Must support collateral operations in lending protocols (supply, withdraw)
+- Must support debt operations in lending protocols (borrow, repay)
